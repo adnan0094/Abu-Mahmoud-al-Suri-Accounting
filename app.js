@@ -1,12 +1,13 @@
 // ===== إعدادات Firebase =====
 // يجب استبدال هذه البيانات ببيانات مشروعك على Firebase
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCWE40C6PlM8QKnrc9m-Ggt6uSNPr9Bzdo",
+  authDomain: "abu-mahmoud.firebaseapp.com",
+  projectId: "abu-mahmoud",
+  storageBucket: "abu-mahmoud.firebasestorage.app",
+  messagingSenderId: "651960002872",
+  appId: "1:651960002872:web:5b64f5563d591a9df339cd",
+  measurementId: "G-1NZY6P305W"
 };
 
 let firebaseInitialized = false;
@@ -15,24 +16,39 @@ let db = null;
 
 // محاولة تهيئة Firebase
 try {
-  if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
-    firebase.initializeApp(firebaseConfig);
-    db = firebase.firestore();
-    firebaseInitialized = true;
-    
-    firebase.auth().onAuthStateChanged(user => {
-      currentUser = user;
-      if (user) {
-        document.getElementById('syncStatus').textContent = '☁️ متزامن';
-        document.getElementById('syncStatus').className = 'sync-status synced';
-        loadDataFromFirebase();
-      } else {
-        document.getElementById('syncStatus').textContent = '';
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  firebaseInitialized = true;
+  
+  // إعداد FirebaseUI لتسجيل الدخول بـ Google
+  const ui = new firebaseui.auth.AuthUI(firebase.auth());
+  const uiConfig = {
+    callbacks: {
+      signInSuccessWithAuthResult: function(authResult, redirectUrl) {
+        closeModal('loginModal');
+        return false;
       }
-    });
-  }
+    },
+    signInFlow: 'popup',
+    signInOptions: [
+      firebase.auth.GoogleAuthProvider.PROVIDER_ID
+    ]
+  };
+
+  firebase.auth().onAuthStateChanged(user => {
+    currentUser = user;
+    if (user) {
+      document.getElementById('syncStatus').textContent = '☁️ متزامن: ' + user.displayName;
+      document.getElementById('syncStatus').className = 'sync-status synced';
+      loadDataFromFirebase();
+    } else {
+      document.getElementById('syncStatus').textContent = '⚠️ غير متزامن (سجل دخولك)';
+      document.getElementById('syncStatus').className = 'sync-status';
+      ui.start('#firebaseUI', uiConfig);
+    }
+  });
 } catch (e) {
-  console.log('Firebase not configured');
+  console.error('Firebase initialization error:', e);
 }
 
 // ===== بيانات البرنامج =====
