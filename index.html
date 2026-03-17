@@ -18,13 +18,85 @@
     </div>
     
     <div class="login-body">
-      <div id="firebaseUILogin"></div>
+      <!-- نموذج تسجيل الدخول باسم المستخدم وكلمة المرور -->
+      <div id="usernamePasswordForm" class="login-form">
+        <h2>تسجيل الدخول</h2>
+        
+        <div class="form-group">
+          <label for="loginUsername">اسم المستخدم:</label>
+          <input type="text" id="loginUsername" class="form-input" placeholder="أدخل اسم المستخدم" autocomplete="username">
+        </div>
+        
+        <div class="form-group">
+          <label for="loginPassword">كلمة المرور:</label>
+          <input type="password" id="loginPassword" class="form-input" placeholder="أدخل كلمة المرور" autocomplete="current-password">
+        </div>
+        
+        <div class="form-group checkbox">
+          <input type="checkbox" id="rememberMe">
+          <label for="rememberMe">تذكرني</label>
+        </div>
+        
+        <button class="btn-login" onclick="loginWithUsernamePassword()">دخول</button>
+        
+        <div class="form-divider">أو</div>
+        
+        <button class="btn-google" onclick="toggleGoogleLogin()">🔐 دخول عبر Google</button>
+        
+        <div class="form-footer">
+          <p>ليس لديك حساب؟ <a href="#" onclick="toggleRegisterForm(event)">إنشاء حساب جديد</a></p>
+        </div>
+      </div>
+
+      <!-- نموذج التسجيل (مخفي في البداية) -->
+      <div id="registerForm" class="login-form" style="display: none;">
+        <h2>إنشاء حساب جديد</h2>
+        
+        <div class="form-group">
+          <label for="registerUsername">اسم المستخدم:</label>
+          <input type="text" id="registerUsername" class="form-input" placeholder="اختر اسم مستخدم" autocomplete="username">
+          <small id="usernameError" class="error-text"></small>
+        </div>
+        
+        <div class="form-group">
+          <label for="registerEmail">البريد الإلكتروني:</label>
+          <input type="email" id="registerEmail" class="form-input" placeholder="أدخل بريدك الإلكتروني" autocomplete="email">
+          <small id="emailError" class="error-text"></small>
+        </div>
+        
+        <div class="form-group">
+          <label for="registerPassword">كلمة المرور:</label>
+          <input type="password" id="registerPassword" class="form-input" placeholder="اختر كلمة مرور قوية" autocomplete="new-password">
+          <small id="passwordError" class="error-text"></small>
+        </div>
+        
+        <div class="form-group">
+          <label for="confirmPassword">تأكيد كلمة المرور:</label>
+          <input type="password" id="confirmPassword" class="form-input" placeholder="أعد إدخال كلمة المرور" autocomplete="new-password">
+          <small id="confirmError" class="error-text"></small>
+        </div>
+        
+        <button class="btn-login" onclick="registerNewUser()">إنشاء الحساب</button>
+        
+        <div class="form-footer">
+          <p>هل لديك حساب بالفعل؟ <a href="#" onclick="toggleRegisterForm(event)">تسجيل الدخول</a></p>
+        </div>
+      </div>
       
-      <div class="login-info">
-        <h3>📋 معلومات مهمة</h3>
-        <p><strong>هل أنت مستخدم جديد؟</strong></p>
-        <p>يرجى التواصل مع المبرمج لتفعيل حسابك. بعد تسجيل دخولك بحساب جوجل، سيتم التحقق من صلاحيتك تلقائياً.</p>
-        <p class="warning-text">⚠️ لن تتمكن من الوصول للبرنامج إلا بعد تفعيل حسابك من قبل المبرمج.</p>
+      <!-- نموذج Google Login (مخفي في البداية) -->
+      <div id="googleLoginForm" class="login-form" style="display: none;">
+        <div id="firebaseUILogin"></div>
+        
+        <div class="form-divider">أو</div>
+        
+        <button class="btn-back" onclick="toggleGoogleLogin()">← العودة للتسجيل بالبيانات</button>
+        
+        <div class="login-info">
+          <h3>📋 معلومات مهمة</h3>
+          <p><strong>هل أنت مستخدم جديد؟</strong></p>
+          <p>يرجى التواصل مع المبرمج لتفعيل حسابك. بعد تسجيل دخولك بحساب جوجل، سيتم التحقق من صلاحيتك تلقائياً.</p>
+          <p class="warning-text">⚠️ لن تتمكن من الوصول للبرنامج إلا بعد تفعيل حسابك من قبل المبرمج.</p>
+        </div>
       </div>
     </div>
     
@@ -295,6 +367,7 @@
 <script src="https://www.gstatic.com/firebaseui/6.1.0/firebaseui.js"></script>
 <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebaseui/6.1.0/firebaseui.css" />
 
+<script src="auth.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

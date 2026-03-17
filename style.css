@@ -850,6 +850,202 @@ button:active {
 }
 
 
+/* ===== نماذج تسجيل الدخول والتسجيل ===== */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.login-form h2 {
+  font-size: 18px;
+  color: #0a246a;
+  margin: 0;
+  text-align: center;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.form-group label {
+  font-size: 12px;
+  font-weight: bold;
+  color: #333;
+}
+
+.form-input {
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  direction: rtl;
+  background: white;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #0a246a;
+  background: #fffff0;
+}
+
+.form-input::placeholder {
+  color: #999;
+}
+
+.form-group.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-group.checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.form-group.checkbox label {
+  margin: 0;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+.error-text {
+  font-size: 11px;
+  color: #cc0000;
+  display: none;
+}
+
+.error-message {
+  background: #ffcccc;
+  border: 1px solid #cc0000;
+  color: #cc0000;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.success-message {
+  background: #ccffcc;
+  border: 1px solid #00cc00;
+  color: #006600;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.btn-login {
+  padding: 10px 16px;
+  background: #0a246a;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  transition: background 0.2s;
+  width: 100%;
+}
+
+.btn-login:hover {
+  background: #1a3680;
+}
+
+.btn-login:active {
+  background: #051a4d;
+}
+
+.btn-google {
+  padding: 10px 16px;
+  background: white;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.btn-google:hover {
+  background: #f9f9f9;
+  border-color: #999;
+}
+
+.btn-back {
+  padding: 10px 16px;
+  background: #d4d0c8;
+  color: #333;
+  border: 1px solid #999;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.btn-back:hover {
+  background: #c0bdb5;
+}
+
+.form-divider {
+  text-align: center;
+  color: #999;
+  font-size: 12px;
+  margin: 5px 0;
+  position: relative;
+}
+
+.form-divider::before,
+.form-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 45%;
+  height: 1px;
+  background: #ddd;
+}
+
+.form-divider::before {
+  right: 0;
+}
+
+.form-divider::after {
+  left: 0;
+}
+
+.form-footer {
+  text-align: center;
+  font-size: 12px;
+  color: #666;
+}
+
+.form-footer p {
+  margin: 0;
+}
+
+.form-footer a {
+  color: #0a246a;
+  text-decoration: none;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.form-footer a:hover {
+  text-decoration: underline;
+}
+
 /* ===== شاشة تسجيل الدخول الإلزامية ===== */
 .login-screen {
   position: fixed;
@@ -1062,4 +1258,37 @@ button:active {
   overflow: hidden;
   gap: 0;
   background: #d4d0c8;
+}
+
+/* ===== استجابة النماذج للأجهزة الصغيرة ===== */
+@media (max-width: 480px) {
+  .login-container {
+    max-width: 100%;
+    border-radius: 0;
+  }
+
+  .login-header {
+    padding: 20px 15px;
+  }
+
+  .login-logo {
+    font-size: 36px;
+  }
+
+  .login-header h1 {
+    font-size: 18px;
+  }
+
+  .login-body {
+    padding: 15px;
+  }
+
+  .form-input {
+    font-size: 16px; /* منع التكبير التلقائي على iOS */
+  }
+
+  .btn-login, .btn-google, .btn-back {
+    font-size: 14px;
+    padding: 12px 14px;
+  }
 }
