@@ -8,6 +8,54 @@
 </head>
 <body>
 
+<!-- شاشة تسجيل الدخول الإلزامية -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-container">
+    <div class="login-header">
+      <div class="login-logo">🏪</div>
+      <h1>برنامج أبو محمود السوري للمحاسبة</h1>
+      <p>نظام متكامل لإدارة الفواتير والزبائن</p>
+    </div>
+    
+    <div class="login-body">
+      <div id="firebaseUILogin"></div>
+      
+      <div class="login-info">
+        <h3>📋 معلومات مهمة</h3>
+        <p><strong>هل أنت مستخدم جديد؟</strong></p>
+        <p>يرجى التواصل مع المبرمج لتفعيل حسابك. بعد تسجيل دخولك بحساب جوجل، سيتم التحقق من صلاحيتك تلقائياً.</p>
+        <p class="warning-text">⚠️ لن تتمكن من الوصول للبرنامج إلا بعد تفعيل حسابك من قبل المبرمج.</p>
+      </div>
+    </div>
+    
+    <div class="login-footer">
+      <p>جميع الحقوق محفوظة © 2024</p>
+    </div>
+  </div>
+</div>
+
+<!-- شاشة الانتظار (التحميل) -->
+<div class="loading-screen" id="loadingScreen" style="display: none;">
+  <div class="loading-container">
+    <div class="spinner"></div>
+    <p>جاري التحقق من صلاحيتك...</p>
+  </div>
+</div>
+
+<!-- شاشة عدم التفعيل -->
+<div class="unauthorized-screen" id="unauthorizedScreen" style="display: none;">
+  <div class="unauthorized-container">
+    <div class="unauthorized-icon">🔒</div>
+    <h2>حسابك لم يتم تفعيله بعد</h2>
+    <p>يرجى التواصل مع المبرمج لتفعيل حسابك.</p>
+    <p class="user-email">بريدك الإلكتروني: <strong id="userEmail"></strong></p>
+    <button class="btn-logout" onclick="logoutUser()">تسجيل الخروج</button>
+  </div>
+</div>
+
+<!-- البرنامج الرئيسي (مخفي حتى التفعيل) -->
+<div class="app-container" id="appContainer" style="display: none;">
+
 <!-- شريط العنوان -->
 <div class="title-bar">
   <div class="title-bar-text">🏪 برنامج المحاسبة</div>
@@ -23,8 +71,8 @@
   <div class="menu-item" onclick="showReports(); closeMenu('mainMenu')">📊 التقارير</div>
   <div class="menu-item" onclick="exportData(); closeMenu('mainMenu')">📥 تصدير البيانات</div>
   <div class="menu-item" onclick="printInvoice(); closeMenu('mainMenu')">🖨️ طباعة</div>
-  <div class="menu-item" onclick="showLoginModal(); closeMenu('mainMenu')">🔐 تسجيل الدخول (Google)</div>
   <div class="menu-divider"></div>
+  <div class="menu-item" onclick="logoutUser(); closeMenu('mainMenu')">🚪 تسجيل الخروج</div>
   <div class="menu-item" onclick="showAbout(); closeMenu('mainMenu')">ℹ️ حول البرنامج</div>
 </div>
 
@@ -219,20 +267,6 @@
   </div>
 </div>
 
-<!-- نافذة تسجيل الدخول بـ Google -->
-<div class="modal-overlay" id="loginModal" style="display:none;">
-  <div class="modal">
-    <div class="modal-title">🔐 تسجيل الدخول بـ Google</div>
-    <div class="modal-body">
-      <p>سيتم ربط بياناتك بحسابك في Google وحفظها تلقائياً في السحابة.</p>
-      <div id="firebaseUI"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-cancel" onclick="closeModal('loginModal')">إغلاق</button>
-    </div>
-  </div>
-</div>
-
 <!-- نافذة حول البرنامج -->
 <div class="modal-overlay" id="aboutModal" style="display:none;">
   <div class="modal modal-small">
@@ -240,9 +274,9 @@
     <div class="modal-body" style="text-align:center;">
       <div style="font-size:48px; margin:10px;">🏪</div>
       <h2>برنامج أبو محمود السوري للمحاسبة</h2>
-      <p>الإصدار 2.0.0</p>
+      <p>الإصدار 3.0.0</p>
       <p>نظام متكامل لإدارة الفواتير والزبائن</p>
-      <p style="font-size:12px; color:#666;">متوافق مع الجوال • متزامن مع Google Cloud</p>
+      <p style="font-size:12px; color:#666;">متوافق مع الجوال • متزامن مع Google Cloud • نظام أمني متقدم</p>
       <hr>
       <p>جميع الحقوق محفوظة © 2024</p>
     </div>
@@ -252,14 +286,15 @@
   </div>
 </div>
 
-<!-- Firebase App (the core Firebase SDK) -->
+</div>
+
+<!-- Firebase Scripts -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<!-- Add Firebase products that you want to use -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<!-- Firebase UI for Google Login -->
 <script src="https://www.gstatic.com/firebaseui/6.1.0/firebaseui.js"></script>
 <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebaseui/6.1.0/firebaseui.css" />
+
 <script src="app.js"></script>
 </body>
 </html>

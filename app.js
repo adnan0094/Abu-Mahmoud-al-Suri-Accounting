@@ -38,13 +38,10 @@ try {
   firebase.auth().onAuthStateChanged(user => {
     currentUser = user;
     if (user) {
-      document.getElementById('syncStatus').textContent = '☁️ متزامن: ' + user.displayName;
-      document.getElementById('syncStatus').className = 'sync-status synced';
-      loadDataFromFirebase();
+      checkUserApproval(user);
     } else {
-      document.getElementById('syncStatus').textContent = '⚠️ غير متزامن (سجل دخولك)';
-      document.getElementById('syncStatus').className = 'sync-status';
-      ui.start('#firebaseUI', uiConfig);
+      showLoginScreen();
+      ui.start('#firebaseUILogin', uiConfig);
     }
   });
 } catch (e) {
@@ -69,6 +66,64 @@ const commonItems = [
 
 // وحدات القياس
 const units = ['كغ', 'غ', 'لتر', 'مل', 'قطعة', 'علبة', 'كرتون', 'كيس', 'متر', 'دزينة'];
+
+// ===== دالة التحقق من تفعيل المستخدم =====
+function checkUserApproval(user) {
+  document.getElementById('loadingScreen').style.display = 'flex';
+  
+  db.collection('users').doc(user.uid).get().then(doc => {
+    if (doc.exists && doc.data().approved === true) {
+      // المستخدم مفعل
+      document.getElementById('loadingScreen').style.display = 'none';
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('unauthorizedScreen').style.display = 'none';
+      document.getElementById('appContainer').style.display = 'flex';
+      
+      document.getElementById('syncStatus').textContent = '☁️ متزامن: ' + user.displayName;
+      document.getElementById('syncStatus').className = 'sync-status synced';
+      loadDataFromFirebase();
+    } else {
+      // المستخدم غير مفعل
+      document.getElementById('loadingScreen').style.display = 'none';
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('appContainer').style.display = 'none';
+      document.getElementById('unauthorizedScreen').style.display = 'flex';
+      document.getElementById('userEmail').textContent = user.email;
+      
+      // إنشاء سجل المستخدم إذا لم يكن موجوداً
+      db.collection('users').doc(user.uid).set({
+        email: user.email,
+        displayName: user.displayName,
+        approved: false,
+        createdAt: new Date(),
+        lastLogin: new Date()
+      }, { merge: true });
+    }
+  }).catch(error => {
+    console.error('Error checking user approval:', error);
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('unauthorizedScreen').style.display = 'flex';
+    document.getElementById('userEmail').textContent = user.email;
+  });
+}
+
+// ===== دالة إظهار شاشة تسجيل الدخول =====
+function showLoginScreen() {
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('unauthorizedScreen').style.display = 'none';
+  document.getElementById('appContainer').style.display = 'none';
+}
+
+// ===== دالة تسجيل الخروج =====
+function logoutUser() {
+  firebase.auth().signOut().then(() => {
+    showLoginScreen();
+    setStatus('تم تسجيل الخروج بنجاح');
+  }).catch(error => {
+    console.error('Error signing out:', error);
+  });
+}
 
 // ===== تهيئة البرنامج =====
 document.addEventListener('DOMContentLoaded', function() {
