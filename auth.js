@@ -265,7 +265,13 @@ function sendPasswordResetEmail() {
   }
 
   if (firebaseInitialized) {
-    firebase.auth().sendPasswordResetEmail(email)
+    // إعدادات متقدمة لرابط استعادة كلمة المرور
+    const actionCodeSettings = {
+      url: window.location.origin + window.location.pathname,
+      handleCodeInApp: false
+    };
+    
+    firebase.auth().sendPasswordResetEmail(email, actionCodeSettings)
       .then(() => {
         // رسالة النجاح مع تفاصيل واضحة
         const successMsg = 'تم إرسال رابط استعادة كلمة المرور بنجاح!\n\nيرجى التحقق من بريدك الإلكتروني (بما في ذلك مجلد الرسائل المزعجة) للعثور على رابط الاستعادة.\n\nإذا لم تستقبل البريد خلال دقائق قليلة، يرجى التحقق من صحة البريد الإلكتروني.';
@@ -763,10 +769,78 @@ function checkUserApproval(user) {
     document.getElementById('unauthorizedScreen').style.display = 'flex';
     document.getElementById('userEmail').textContent = user.email;
   });
+  
+  // بدء مراقبة حالة الحساب
+  setTimeout(() => {
+    if (isLoggedIn && authMode === 'firebase') {
+      monitorUserApprovalStatus(user.uid);
+    }
+  }, 1000);
+}
+
+// ===== دالة مراقبة حالة الحساب بشكل مستمر =====
+let monitoringInterval = null;
+
+function monitorUserApprovalStatus(userId) {
+  if (!db || !userId) return;
+  
+  // إيقاف أي مراقبة سابقة
+  if (monitoringInterval) {
+    clearInterval(monitoringInterval);
+  }
+
+  // مراقبة التغييرات في حالة الحساب كل 5 ثوان
+  monitoringInterval = setInterval(() => {
+    if (!isLoggedIn || authMode !== 'firebase' || !firebase.auth().currentUser) {
+      clearInterval(monitoringInterval);
+      monitoringInterval = null;
+      return;
+    }
+
+    db.collection('users').doc(userId).get().then(doc => {
+      if (doc.exists) {
+        const userData = doc.data();
+        
+        // إذا تم إيقاف الحساب أو تم سحب الموافقة
+        if (userData.approved === false || userData.disabled === true) {
+          // إيقاف فوري للوصول
+          clearInterval(monitoringInterval);
+          monitoringInterval = null;
+          isLoggedIn = false;
+          currentUser = null;
+          authMode = 'local';
+          
+          // إظهار شاشة عدم التفعيل
+          document.getElementById('appContainer').style.display = 'none';
+          document.getElementById('loginScreen').style.display = 'none';
+          document.getElementById('unauthorizedScreen').style.display = 'flex';
+          
+          const currentFirebaseUser = firebase.auth().currentUser;
+          if (currentFirebaseUser) {
+            document.getElementById('userEmail').textContent = currentFirebaseUser.email;
+          }
+          
+          // تسجيل الخروج من Firebase
+          firebase.auth().signOut().catch(err => console.error('Sign out error:', err));
+          
+          // عرض رسالة توضيحية
+          alert('تم إيقاف حسابك من قبل المسؤول. يرجى التواصل معه للمزيد من المعلومات.');
+        }
+      }
+    }).catch(error => {
+      console.error('Error monitoring user status:', error);
+    });
+  }, 5000); // التحقق كل 5 ثوان
 }
 
 // ===== دالة تسجيل الخروج =====
 function logoutUser() {
+  // إيقاف مراقبة حالة الحساب
+  if (monitoringInterval) {
+    clearInterval(monitoringInterval);
+    monitoringInterval = null;
+  }
+  
   if (authMode === 'firebase' && firebaseInitialized) {
     firebase.auth().signOut().then(() => {
       currentUser = null;
