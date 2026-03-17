@@ -303,20 +303,29 @@ function calculateTotal() {
     const price = parseFloat(priceInput.value) || 0;
     const rowTotal = qty * price;
 
-    totalCell.textContent = rowTotal.toFixed(2);
+    // عرض القيمة بدون أصفار إذا كانت صفراً
+    totalCell.textContent = rowTotal === 0 ? '' : formatNumber(rowTotal);
     grandTotal += rowTotal;
   });
 
-  document.getElementById('grandTotal').textContent = grandTotal.toFixed(2);
+  document.getElementById('grandTotal').textContent = grandTotal === 0 ? '' : formatNumber(grandTotal);
   calculateBalance();
 }
 
 function calculateBalance() {
-  const grandTotal = parseFloat(document.getElementById('grandTotal').textContent) || 0;
+  const grandTotalText = document.getElementById('grandTotal').textContent;
+  const grandTotal = grandTotalText === '' ? 0 : parseFloat(grandTotalText) || 0;
   const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
   const balance = grandTotal - amountPaid;
 
-  document.getElementById('balance').textContent = balance.toFixed(2);
+  document.getElementById('balance').textContent = balance === 0 ? '' : formatNumber(balance);
+}
+
+// ===== دالة تنسيق الأرقام (إزالة الأصفار الثلاثة) =====
+function formatNumber(num) {
+  if (num === 0) return '';
+  // عرض رقم بعلامات عشرية بدون الأصفار الزائدة
+  return num.toLocaleString('ar-SA', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function saveInvoice() {
@@ -517,15 +526,15 @@ function showReports() {
       <table class="customers-table" style="width:100%;">
         <tr>
           <td><strong>إجمالي المبيعات:</strong></td>
-          <td>${totalSales.toFixed(2)}</td>
+          <td>${formatNumber(totalSales)}</td>
         </tr>
         <tr>
           <td><strong>المدفوع:</strong></td>
-          <td>${totalPaid.toFixed(2)}</td>
+          <td>${formatNumber(totalPaid)}</td>
         </tr>
         <tr>
           <td><strong>المتبقي:</strong></td>
-          <td>${totalBalance.toFixed(2)}</td>
+          <td>${formatNumber(totalBalance)}</td>
         </tr>
       </table>
     </div>
@@ -543,7 +552,7 @@ function showReports() {
   `;
 
   Object.entries(customerSales).forEach(([customer, sales]) => {
-    html += `<tr><td>${customer}</td><td>${sales.toFixed(2)}</td></tr>`;
+    html += `<tr><td>${customer}</td><td>${formatNumber(sales)}</td></tr>`;
   });
 
   html += `
@@ -642,8 +651,8 @@ function printInvoice() {
         <td>${index + 1}</td>
         <td>${item.type}</td>
         <td>${item.qty}</td>
-        <td>${item.price.toFixed(2)}</td>
-        <td>${itemTotal.toFixed(2)}</td>
+        <td>${formatNumber(item.price)}</td>
+        <td>${formatNumber(itemTotal)}</td>
       </tr>
     `;
   });
@@ -653,9 +662,9 @@ function printInvoice() {
       </table>
 
       <div style="text-align: left; margin-bottom: 20px;">
-        <div class="total-row">إجمالي المبيعات: ${invoice.grandTotal.toFixed(2)}</div>
-        <div class="total-row">المدفوع: ${invoice.amountPaid.toFixed(2)}</div>
-        <div class="total-row">المتبقي: ${invoice.balance.toFixed(2)}</div>
+        <div class="total-row">إجمالي المبيعات: ${formatNumber(invoice.grandTotal)}</div>
+        <div class="total-row">المدفوع: ${formatNumber(invoice.amountPaid)}</div>
+        <div class="total-row">المتبقي: ${formatNumber(invoice.balance)}</div>
       </div>
 
       ${invoice.notes ? `<div><strong>ملاحظات:</strong> ${invoice.notes}</div>` : ''}
