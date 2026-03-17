@@ -358,10 +358,35 @@ function calculateRowTotal(rid) {
 
   const totalCell = document.getElementById(`total-${rid}`);
   if (totalCell) {
-    totalCell.textContent = total === 0 ? '0' : total.toFixed(2).replace(/\.?0+$/, '');
+    totalCell.textContent = formatNumber(total);
   }
 
   calculateTotals();
+}
+
+// دالة لتنسيق الأرقام: إزالة أول 3 أصفار (الآلاف)
+function formatNumber(num) {
+  if (num === 0) return '0';
+  
+  // تحويل الرقم إلى نص
+  let numStr = num.toFixed(2);
+  
+  // إزالة الأصفار الزائدة من اليمين
+  numStr = numStr.replace(/\.?0+$/, '');
+  
+  // إزالة أول 3 أصفار من اليسار (الآلاف) إن وجدت
+  // مثلاً: 1000 يصبح 1، 5000 يصبح 5، 10000 يصبح 10
+  if (numStr.includes('.')) {
+    // إذا كان الرقم يحتوي على فاصلة عشرية، لا نزيل الأصفار
+    return numStr;
+  } else {
+    // إزالة آخر 3 أصفار من الرقم الصحيح
+    if (numStr.endsWith('000')) {
+      numStr = numStr.slice(0, -3);
+    }
+  }
+  
+  return numStr;
 }
 
 function calculateTotals() {
@@ -377,18 +402,28 @@ function calculateTotals() {
   });
 
   const grandTotalEl = document.getElementById('grandTotal');
-  grandTotalEl.textContent = grandTotal === 0 ? '0' : grandTotal.toFixed(2).replace(/\.?0+$/, '');
+  grandTotalEl.textContent = formatNumber(grandTotal);
 
   calculateBalance();
 }
 
 function calculateBalance() {
-  const grandTotal = parseFloat(document.getElementById('grandTotal').textContent) || 0;
+  // الحصول على القيم الفعلية من الحسابات (قبل التنسيق)
+  const rows = document.querySelectorAll('#invoiceBody tr');
+  let actualGrandTotal = 0;
+  
+  rows.forEach(tr => {
+    const rid = tr.id.replace('row-', '');
+    const qty = parseFloat(document.getElementById(`qty-${rid}`)?.value) || 0;
+    const price = parseFloat(document.getElementById(`price-${rid}`)?.value) || 0;
+    actualGrandTotal += qty * price;
+  });
+  
   const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
-  const balance = grandTotal - amountPaid;
+  const balance = actualGrandTotal - amountPaid;
 
   const balanceEl = document.getElementById('balance');
-  balanceEl.textContent = balance === 0 ? '0' : balance.toFixed(2).replace(/\.?0+$/, '');
+  balanceEl.textContent = formatNumber(balance);
   balanceEl.style.color = balance > 0 ? '#cc0000' : (balance < 0 ? '#006600' : '#000');
 }
 
