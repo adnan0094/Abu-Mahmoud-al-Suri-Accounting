@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
     renderSavedInvoices();
     updateStatusBar();
     addRow();
-    updateInvoiceNumber();
+    // updateInvoiceNumber() لا تحتاج للعرض بعد الآن
 
     // إغلاق القوائم عند النقر خارجها
     document.addEventListener('click', function(e) {
@@ -65,6 +65,12 @@ function setTodayDate() {
 
 // ===== رقم الفاتورة =====
 function updateInvoiceNumber() {
+  // توليد رقم الفاتورة بدون عرضه في الواجهة
+  // الرقم يبقى محفوظاً في متغير invoiceCounter
+  if (!document.getElementById('invoiceNumber')) {
+    // إذا لم يكن الحقل موجوداً في الواجهة
+    return invoiceCounter;
+  }
   document.getElementById('invoiceNumber').value = invoiceCounter;
 }
 
@@ -144,6 +150,11 @@ function selectCustomer(customerId) {
   if (customer) {
     document.getElementById('customerName').value = customer.name;
     setStatus(`تم تحديد الزبون: ${customer.name}`);
+    
+    // توليد وتصدير PDF لكشف حساب الزبون
+    setTimeout(() => {
+      generateCustomerStatementPDF(customer);
+    }, 500);
   }
 }
 
@@ -238,10 +249,7 @@ function addRow() {
   row.innerHTML = `
     <td class="col-num">${rowCount + 1}</td>
     <td class="col-type">
-      <select class="table-select" onchange="calculateTotal()">
-        <option value="">اختر صنف</option>
-        ${commonItems.map(item => `<option value="${item}">${item}</option>`).join('')}
-      </select>
+      <input type="text" class="table-input" placeholder="أدخل الصنف" onchange="calculateTotal()" onkeypress="handleEnter(event)">
     </td>
     <td class="col-qty">
       <input type="number" class="table-input" min="0" step="0.01" value="0" onchange="calculateTotal()" onkeypress="handleEnter(event)">
@@ -711,4 +719,262 @@ function handleEnter(event) {
   if (event.key === 'Enter') {
     addRow();
   }
+}
+
+
+// ===== توليد PDF لكشف حساب الزبون =====
+function generateCustomerStatementPDF(customer) {
+  // جمع فواتير الزبون
+  const customerInvoices = savedInvoices.filter(inv => inv.customerId === customer.id);
+  
+  if (customerInvoices.length === 0) {
+    alert(`لا توجد فواتير للزبون ${customer.name}`);
+    return;
+  }
+  
+  // حساب الإجماليات
+  let totalSales = 0;
+  let totalPaid = 0;
+  let totalBalance = 0;
+  
+  customerInvoices.forEach(invoice => {
+    totalSales += invoice.grandTotal || 0;
+    totalPaid += invoice.amountPaid || 0;
+    totalBalance += invoice.balance || 0;
+  });
+  
+  // إنشاء HTML للمستند
+  let htmlContent = `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>كشف حساب - ${customer.name}</title>
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        body {
+          font-family: 'Arial', sans-serif;
+          padding: 20px;
+          background-color: #f5f5f5;
+        }
+        .container {
+          background-color: white;
+          padding: 30px;
+          border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          max-width: 900px;
+          margin: 0 auto;
+        }
+        h1 {
+          text-align: center;
+          color: #0066cc;
+          margin-bottom: 10px;
+          font-size: 28px;
+          border-bottom: 3px solid #0066cc;
+          padding-bottom: 15px;
+        }
+        .subtitle {
+          text-align: center;
+          color: #666;
+          margin-bottom: 30px;
+          font-size: 14px;
+        }
+        .customer-info {
+          background-color: #f0f8ff;
+          padding: 20px;
+          border-radius: 5px;
+          margin-bottom: 30px;
+          border-right: 4px solid #0066cc;
+        }
+        .customer-info p {
+          margin: 8px 0;
+          font-size: 14px;
+          line-height: 1.6;
+        }
+        .customer-info strong {
+          color: #333;
+          min-width: 120px;
+          display: inline-block;
+        }
+        .summary {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 15px;
+          margin-bottom: 30px;
+        }
+        .summary-item {
+          background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+          color: white;
+          padding: 20px;
+          border-radius: 5px;
+          text-align: center;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .summary-item label {
+          display: block;
+          font-size: 12px;
+          margin-bottom: 8px;
+          opacity: 0.9;
+        }
+        .summary-item value {
+          display: block;
+          font-size: 24px;
+          font-weight: bold;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 30px;
+        }
+        th {
+          background-color: #0066cc;
+          color: white;
+          padding: 12px;
+          text-align: right;
+          font-weight: bold;
+          font-size: 14px;
+        }
+        td {
+          padding: 12px;
+          border-bottom: 1px solid #ddd;
+          font-size: 13px;
+        }
+        tr:nth-child(even) {
+          background-color: #f9f9f9;
+        }
+        tr:hover {
+          background-color: #f0f8ff;
+        }
+        .footer {
+          text-align: center;
+          color: #666;
+          font-size: 12px;
+          border-top: 1px solid #ddd;
+          padding-top: 20px;
+          margin-top: 30px;
+        }
+        .print-buttons {
+          text-align: center;
+          padding: 20px;
+          gap: 10px;
+          display: flex;
+          justify-content: center;
+        }
+        .btn {
+          padding: 10px 20px;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: bold;
+          transition: all 0.3s ease;
+        }
+        .btn-print {
+          background-color: #0066cc;
+          color: white;
+        }
+        .btn-print:hover {
+          background-color: #0052a3;
+        }
+        .btn-close {
+          background-color: #666;
+          color: white;
+        }
+        .btn-close:hover {
+          background-color: #555;
+        }
+        @media print {
+          body {
+            background-color: white;
+            padding: 0;
+          }
+          .container {
+            box-shadow: none;
+            padding: 0;
+          }
+          .print-buttons {
+            display: none;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>📋 كشف حساب الزبون</h1>
+        <p class="subtitle">برنامج أبو محمود السوري للمحاسبة</p>
+        
+        <div class="customer-info">
+          <p><strong>اسم الزبون:</strong> ${customer.name}</p>
+          <p><strong>الهاتف:</strong> ${customer.phone || 'بدون هاتف'}</p>
+          <p><strong>العنوان:</strong> ${customer.address || 'بدون عنوان'}</p>
+        </div>
+        
+        <div class="summary">
+          <div class="summary-item">
+            <label>إجمالي المبيعات</label>
+            <value>${formatNumber(totalSales)}</value>
+          </div>
+          <div class="summary-item">
+            <label>المدفوع</label>
+            <value>${formatNumber(totalPaid)}</value>
+          </div>
+          <div class="summary-item">
+            <label>المتبقي</label>
+            <value>${formatNumber(totalBalance)}</value>
+          </div>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>رقم الفاتورة</th>
+              <th>التاريخ</th>
+              <th>المبيعات</th>
+              <th>المدفوع</th>
+              <th>المتبقي</th>
+            </tr>
+          </thead>
+          <tbody>
+  `;
+  
+  // إضافة بيانات الفواتير
+  customerInvoices.forEach(invoice => {
+    htmlContent += `
+      <tr>
+        <td>#${invoice.invoiceNumber}</td>
+        <td>${invoice.invoiceDate}</td>
+        <td>${formatNumber(invoice.grandTotal)}</td>
+        <td>${formatNumber(invoice.amountPaid)}</td>
+        <td>${formatNumber(invoice.balance)}</td>
+      </tr>
+    `;
+  });
+  
+  htmlContent += `
+          </tbody>
+        </table>
+        
+        <div class="footer">
+          <p>تم توليد هذا الكشف بواسطة برنامج أبو محمود السوري للمحاسبة</p>
+          <p>التاريخ: ${new Date().toLocaleDateString('ar-SA')}</p>
+        </div>
+      </div>
+      
+      <div class="print-buttons">
+        <button class="btn btn-print" onclick="window.print()">🖨️ طباعة</button>
+        <button class="btn btn-close" onclick="window.close()">✖️ إغلاق</button>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  // فتح المستند في نافذة جديدة للمعاينة
+  const newWindow = window.open('', '', 'width=1000,height=800');
+  newWindow.document.write(htmlContent);
+  newWindow.document.close();
 }
