@@ -5,55 +5,13 @@ let authMode = 'local'; // 'local' أو 'firebase'
 let currentUser = null;
 let isLoggedIn = false;
 
-// ===== إعدادات Firebase =====
-const firebaseConfig = {
-  apiKey: "AIzaSyCWE40C6PlM8QKnrc9m-Ggt6uSNPr9Bzdo",
-  authDomain: "abu-mahmoud.firebaseapp.com",
-  projectId: "abu-mahmoud",
-  storageBucket: "abu-mahmoud.firebasestorage.app",
-  messagingSenderId: "651960002872",
-  appId: "1:651960002872:web:5b64f5563d591a9df339cd",
-  measurementId: "G-1NZY6P305W"
-};
-
+// ===== المصادقة المحلية فقط =====
+// البرنامج يستخدم المصادقة المحلية باستخدام localStorage
 let firebaseInitialized = false;
 let db = null;
 
-// محاولة تهيئة Firebase
-try {
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.firestore();
-  firebaseInitialized = true;
-  
-  // إعداد FirebaseUI لتسجيل الدخول بـ Google
-  const ui = new firebaseui.auth.AuthUI(firebase.auth());
-  const uiConfig = {
-    callbacks: {
-      signInSuccessWithAuthResult: function(authResult, redirectUrl) {
-        return false;
-      }
-    },
-    signInFlow: 'popup',
-    signInOptions: [
-      firebase.auth.GoogleAuthProvider.PROVIDER_ID
-    ]
-  };
-
-  firebase.auth().onAuthStateChanged(user => {
-    if (user) {
-      authMode = 'firebase';
-      currentUser = user;
-      checkUserApproval(user);
-    } else {
-      // إذا لم يكن هناك مستخدم Firebase، تحقق من المستخدم المحلي
-      checkLocalUser();
-    }
-  });
-} catch (e) {
-  console.error('Firebase initialization error:', e);
-  // إذا فشل Firebase، استخدم المصادقة المحلية فقط
-  checkLocalUser();
-}
+// بدء المصادقة المحلية
+checkLocalUser();
 
 // ===== دالة التحقق من المستخدم المحلي =====
 function checkLocalUser() {
@@ -647,44 +605,6 @@ function toggleForgotPasswordForm(event) {
   document.getElementById('forgotEmail').value = '';
 }
 
-function toggleGoogleLogin() {
-  const usernameForm = document.getElementById('usernamePasswordForm');
-  const googleForm = document.getElementById('googleLoginForm');
-  
-  if (usernameForm.style.display === 'none') {
-    usernameForm.style.display = 'block';
-    googleForm.style.display = 'none';
-  } else {
-    usernameForm.style.display = 'none';
-    googleForm.style.display = 'block';
-    
-    // تهيئة FirebaseUI عند الحاجة
-    if (firebaseInitialized) {
-      // حذف أي نسخة سابقة من FirebaseUI
-      const existingUI = document.getElementById('firebaseUILogin');
-      if (existingUI) {
-        existingUI.innerHTML = '';
-      }
-      
-      // إنشاء نسخة جديدة من FirebaseUI بإعدادات محسّنة
-      const ui = new firebaseui.auth.AuthUI(firebase.auth());
-      const uiConfig = {
-        callbacks: {
-          signInSuccessWithAuthResult: function(authResult, redirectUrl) {
-            return false;
-          }
-        },
-        signInFlow: 'popup', // استخدم popup لإظهار اختيار الحسابات
-        signInOptions: [
-          firebase.auth.GoogleAuthProvider.PROVIDER_ID
-        ],
-        credentialHelper: firebaseui.auth.CredentialHelper.GOOGLE_YOLO // إظهار الحسابات المحفوظة
-      };
-      ui.start('#firebaseUILogin', uiConfig);
-    }
-  }
-}
-
 // ===== دالة فتح نافذة تغيير كلمة المرور =====
 function openChangePasswordModal() {
   clearModalPasswordErrors();
@@ -721,195 +641,15 @@ function showLoginScreen() {
   document.getElementById('appContainer').style.display = 'none';
 }
 
-// ===== دالة التحقق من تفعيل المستخدم (Firebase) =====
-function checkUserApproval(user) {
-  if (!db) {
-    showLoginScreen();
-    return;
-  }
-
-  document.getElementById('loadingScreen').style.display = 'flex';
-  
-  db.collection('users').doc(user.uid).get().then(doc => {
-    if (doc.exists && doc.data().approved === true) {
-      // المستخدم مفعل
-      currentUser = {
-        id: user.uid,
-        username: user.displayName || user.email.split('@')[0],
-        email: user.email,
-        displayName: user.displayName || user.email,
-        authProvider: 'google',
-        loginTime: new Date().toISOString()
-      };
-      authMode = 'firebase';
-      isLoggedIn = true;
-      
-      showAppInterface();
-      loadDataFromFirebase();
-    } else {
-      // المستخدم غير مفعل
-      document.getElementById('loadingScreen').style.display = 'none';
-      document.getElementById('loginScreen').style.display = 'none';
-      document.getElementById('appContainer').style.display = 'none';
-      document.getElementById('unauthorizedScreen').style.display = 'flex';
-      document.getElementById('userEmail').textContent = user.email;
-      
-      // إنشاء سجل المستخدم إذا لم يكن موجوداً
-      db.collection('users').doc(user.uid).set({
-        email: user.email,
-        displayName: user.displayName,
-        approved: false,
-        createdAt: new Date(),
-        lastLogin: new Date()
-      }, { merge: true });
-    }
-  }).catch(error => {
-    console.error('Error checking user approval:', error);
-    document.getElementById('loadingScreen').style.display = 'none';
-    document.getElementById('unauthorizedScreen').style.display = 'flex';
-    document.getElementById('userEmail').textContent = user.email;
-  });
-  
-  // بدء مراقبة حالة الحساب
-  setTimeout(() => {
-    if (isLoggedIn && authMode === 'firebase') {
-      monitorUserApprovalStatus(user.uid);
-    }
-  }, 1000);
-}
-
-// ===== دالة مراقبة حالة الحساب بشكل مستمر =====
-let monitoringInterval = null;
-
-function monitorUserApprovalStatus(userId) {
-  if (!db || !userId) return;
-  
-  // إيقاف أي مراقبة سابقة
-  if (monitoringInterval) {
-    clearInterval(monitoringInterval);
-  }
-
-  // مراقبة التغييرات في حالة الحساب كل 5 ثوان
-  monitoringInterval = setInterval(() => {
-    if (!isLoggedIn || authMode !== 'firebase' || !firebase.auth().currentUser) {
-      clearInterval(monitoringInterval);
-      monitoringInterval = null;
-      return;
-    }
-
-    db.collection('users').doc(userId).get().then(doc => {
-      if (doc.exists) {
-        const userData = doc.data();
-        
-        // إذا تم إيقاف الحساب أو تم سحب الموافقة
-        if (userData.approved === false || userData.disabled === true) {
-          // إيقاف فوري للوصول
-          clearInterval(monitoringInterval);
-          monitoringInterval = null;
-          isLoggedIn = false;
-          currentUser = null;
-          authMode = 'local';
-          
-          // إظهار شاشة عدم التفعيل
-          document.getElementById('appContainer').style.display = 'none';
-          document.getElementById('loginScreen').style.display = 'none';
-          document.getElementById('unauthorizedScreen').style.display = 'flex';
-          
-          const currentFirebaseUser = firebase.auth().currentUser;
-          if (currentFirebaseUser) {
-            document.getElementById('userEmail').textContent = currentFirebaseUser.email;
-          }
-          
-          // تسجيل الخروج من Firebase
-          firebase.auth().signOut().catch(err => console.error('Sign out error:', err));
-          
-          // عرض رسالة توضيحية
-          alert('تم إيقاف حسابك من قبل المسؤول. يرجى التواصل معه للمزيد من المعلومات.');
-        }
-      }
-    }).catch(error => {
-      console.error('Error monitoring user status:', error);
-    });
-  }, 5000); // التحقق كل 5 ثوان
-}
-
 // ===== دالة تسجيل الخروج =====
 function logoutUser() {
-  // إيقاف مراقبة حالة الحساب
-  if (monitoringInterval) {
-    clearInterval(monitoringInterval);
-    monitoringInterval = null;
-  }
-  
-  if (authMode === 'firebase' && firebaseInitialized) {
-    firebase.auth().signOut().then(() => {
-      currentUser = null;
-      isLoggedIn = false;
-      authMode = 'local';
-      localStorage.removeItem('currentUser');
-      showLoginScreen();
-      setStatus('تم تسجيل الخروج بنجاح');
-    }).catch(error => {
-      console.error('Error signing out:', error);
-    });
-  } else {
-    // تسجيل الخروج المحلي
-    currentUser = null;
-    isLoggedIn = false;
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('rememberMe');
-    showLoginScreen();
-    setStatus('تم تسجيل الخروج بنجاح');
-  }
-}
-
-// ===== دالة تحميل البيانات من Firebase =====
-function loadDataFromFirebase() {
-  if (!currentUser || !db || authMode !== 'firebase') return;
-
-  const userId = currentUser.id;
-  
-  // تحميل الزبائن
-  db.collection('users').doc(userId).collection('customers').get().then(snapshot => {
-    customers = [];
-    snapshot.forEach(doc => {
-      customers.push(doc.data());
-    });
-    renderCustomerList();
-  });
-
-  // تحميل الفواتير
-  db.collection('users').doc(userId).collection('invoices').get().then(snapshot => {
-    savedInvoices = [];
-    snapshot.forEach(doc => {
-      savedInvoices.push(doc.data());
-    });
-    renderSavedInvoices();
-  });
-}
-
-// ===== دالة حفظ البيانات في Firebase =====
-function saveDataToFirebase() {
-  if (!currentUser || !db || authMode !== 'firebase') return;
-
-  const userId = currentUser.id;
-  document.getElementById('syncStatus').textContent = '⏳ جاري المزامنة...';
-  document.getElementById('syncStatus').className = 'sync-status syncing';
-
-  // حفظ الزبائن
-  customers.forEach(customer => {
-    db.collection('users').doc(userId).collection('customers').doc(customer.id.toString()).set(customer);
-  });
-
-  // حفظ الفواتير
-  savedInvoices.forEach(invoice => {
-    db.collection('users').doc(userId).collection('invoices').doc(invoice.id.toString()).set(invoice);
-  });
-
-  setTimeout(() => {
-    document.getElementById('syncStatus').textContent = '☁️ متزامن';
-    document.getElementById('syncStatus').className = 'sync-status synced';
-  }, 1000);
+  // تسجيل الخروج المحلي
+  currentUser = null;
+  isLoggedIn = false;
+  localStorage.removeItem('currentUser');
+  localStorage.removeItem('rememberMe');
+  showLoginScreen();
+  setStatus('تم تسجيل الخروج بنجاح');
 }
 
 // ===== تهيئة المصادقة عند تحميل الصفحة =====

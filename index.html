@@ -39,10 +39,6 @@
         
         <button class="btn-login" onclick="loginWithUsernamePassword()">دخول</button>
         
-        <div class="form-divider">أو</div>
-        
-        <button class="btn-google" onclick="toggleGoogleLogin()">🔐 دخول عبر Google</button>
-        
         <div class="form-footer">
           <p>ليس لديك حساب؟ <a href="#" onclick="toggleRegisterForm(event)">إنشاء حساب جديد</a></p>
           <p><a href="#" onclick="toggleForgotPasswordForm(event)">نسيت كلمة المرور؟</a></p>
@@ -131,22 +127,6 @@
         
         <div class="form-footer">
           <p><a href="#" onclick="closeChangePasswordModal()">← إلغاء</a></p>
-        </div>
-      </div>
-      
-      <!-- نموذج Google Login (مخفي في البداية) -->
-      <div id="googleLoginForm" class="login-form" style="display: none;">
-        <div id="firebaseUILogin"></div>
-        
-        <div class="form-divider">أو</div>
-        
-        <button class="btn-back" onclick="toggleGoogleLogin()">← العودة للتسجيل بالبيانات</button>
-        
-        <div class="login-info">
-          <h3>📋 معلومات مهمة</h3>
-          <p><strong>هل أنت مستخدم جديد؟</strong></p>
-          <p>يرجى التواصل مع المبرمج لتفعيل حسابك. بعد تسجيل دخولك بحساب جوجل، سيتم التحقق من صلاحيتك تلقائياً.</p>
-          <p class="warning-text">⚠️ لن تتمكن من الوصول للبرنامج إلا بعد تفعيل حسابك من قبل المبرمج.</p>
         </div>
       </div>
     </div>
