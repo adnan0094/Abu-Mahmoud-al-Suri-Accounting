@@ -1,17 +1,47 @@
-// ===== بيانات البرنامج =====
-let customers = JSON.parse(localStorage.getItem('customers')) || [
-  { id: 1, name: 'أحمد محمد', phone: '0912345678', address: 'دمشق - المزة', notes: '', totalPurchases: 0 },
-  { id: 2, name: 'خالد العلي', phone: '0923456789', address: 'حلب - الشهباء', notes: '', totalPurchases: 0 },
-  { id: 3, name: 'محمد السيد', phone: '0934567890', address: 'حمص - الوعر', notes: '', totalPurchases: 0 },
-  { id: 4, name: 'فاطمة حسن', phone: '0945678901', address: 'دمشق - باب توما', notes: '', totalPurchases: 0 },
-  { id: 5, name: 'عمر إبراهيم', phone: '0956789012', address: 'اللاذقية', notes: '', totalPurchases: 0 },
-];
+// ===== إعدادات Firebase =====
+// يجب استبدال هذه البيانات ببيانات مشروعك على Firebase
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
 
-let savedInvoices = JSON.parse(localStorage.getItem('savedInvoices')) || [];
+let firebaseInitialized = false;
+let currentUser = null;
+let db = null;
+
+// محاولة تهيئة Firebase
+try {
+  if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    firebaseInitialized = true;
+    
+    firebase.auth().onAuthStateChanged(user => {
+      currentUser = user;
+      if (user) {
+        document.getElementById('syncStatus').textContent = '☁️ متزامن';
+        document.getElementById('syncStatus').className = 'sync-status synced';
+        loadDataFromFirebase();
+      } else {
+        document.getElementById('syncStatus').textContent = '';
+      }
+    });
+  }
+} catch (e) {
+  console.log('Firebase not configured');
+}
+
+// ===== بيانات البرنامج =====
+let customers = [];
+let savedInvoices = [];
 let currentInvoiceId = null;
 let selectedCustomerId = null;
 let selectedRowIndex = -1;
-let invoiceCounter = parseInt(localStorage.getItem('invoiceCounter')) || 1001;
+let invoiceCounter = 1001;
 
 // أنواع الأصناف الشائعة
 const commonItems = [
@@ -26,30 +56,93 @@ const units = ['كغ', 'غ', 'لتر', 'مل', 'قطعة', 'علبة', 'كرتو
 
 // ===== تهيئة البرنامج =====
 document.addEventListener('DOMContentLoaded', function() {
+  loadDataFromLocalStorage();
   setTodayDate();
-  renderCustomerList();
   renderSavedInvoices();
   updateStatusBar();
-  addRow(); // إضافة صف أول فارغ تلقائياً
+  addRow();
   updateInvoiceNumber();
 
   // إغلاق القوائم عند النقر خارجها
   document.addEventListener('click', function(e) {
-    if (!e.target.closest('.menu-item')) {
-      closeAllMenus();
+    if (!e.target.closest('.title-bar-controls') && !e.target.closest('.menu-dropdown')) {
+      closeMenu('mainMenu');
     }
   });
 });
+
+// ===== تحميل البيانات من localStorage =====
+function loadDataFromLocalStorage() {
+  const savedCustomers = localStorage.getItem('customers');
+  const savedInvoicesList = localStorage.getItem('savedInvoices');
+  const savedCounter = localStorage.getItem('invoiceCounter');
+
+  customers = savedCustomers ? JSON.parse(savedCustomers) : [];
+  savedInvoices = savedInvoicesList ? JSON.parse(savedInvoicesList) : [];
+  invoiceCounter = savedCounter ? parseInt(savedCounter) : 1001;
+}
+
+// ===== حفظ البيانات في localStorage =====
+function saveDataToLocalStorage() {
+  localStorage.setItem('customers', JSON.stringify(customers));
+  localStorage.setItem('savedInvoices', JSON.stringify(savedInvoices));
+  localStorage.setItem('invoiceCounter', invoiceCounter.toString());
+}
+
+// ===== تحميل البيانات من Firebase =====
+function loadDataFromFirebase() {
+  if (!currentUser || !db) return;
+
+  const userId = currentUser.uid;
+  
+  // تحميل الزبائن
+  db.collection('users').doc(userId).collection('customers').get().then(snapshot => {
+    customers = [];
+    snapshot.forEach(doc => {
+      customers.push(doc.data());
+    });
+    renderCustomerList();
+  });
+
+  // تحميل الفواتير
+  db.collection('users').doc(userId).collection('invoices').get().then(snapshot => {
+    savedInvoices = [];
+    snapshot.forEach(doc => {
+      savedInvoices.push(doc.data());
+    });
+    renderSavedInvoices();
+  });
+}
+
+// ===== حفظ البيانات في Firebase =====
+function saveDataToFirebase() {
+  if (!currentUser || !db) return;
+
+  const userId = currentUser.uid;
+  document.getElementById('syncStatus').textContent = '⏳ جاري المزامنة...';
+  document.getElementById('syncStatus').className = 'sync-status syncing';
+
+  // حفظ الزبائن
+  customers.forEach(customer => {
+    db.collection('users').doc(userId).collection('customers').doc(customer.id.toString()).set(customer);
+  });
+
+  // حفظ الفواتير
+  savedInvoices.forEach(invoice => {
+    db.collection('users').doc(userId).collection('invoices').doc(invoice.id.toString()).set(invoice);
+  });
+
+  setTimeout(() => {
+    document.getElementById('syncStatus').textContent = '☁️ متزامن';
+    document.getElementById('syncStatus').className = 'sync-status synced';
+  }, 1000);
+}
 
 // ===== تاريخ اليوم =====
 function setTodayDate() {
   const today = new Date();
   const dateStr = today.toISOString().split('T')[0];
   document.getElementById('invoiceDate').value = dateStr;
-
-  // تحديث التاريخ في شريط الحالة
-  const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-  document.getElementById('currentDate').textContent = today.toLocaleDateString('ar-SY', options);
 }
 
 // ===== رقم الفاتورة =====
@@ -57,41 +150,74 @@ function updateInvoiceNumber() {
   document.getElementById('invoiceNumber').value = invoiceCounter;
 }
 
-// ===== قائمة القوائم =====
+// ===== إدارة القوائم =====
 function toggleMenu(menuId) {
   const menu = document.getElementById(menuId);
-  const isActive = menu.classList.contains('active');
-  closeAllMenus();
-  if (!isActive) {
-    menu.classList.add('active');
-  }
+  menu.classList.toggle('active');
 }
 
-function closeAllMenus() {
-  document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
+function closeMenu(menuId) {
+  const menu = document.getElementById(menuId);
+  menu.classList.remove('active');
 }
 
-// ===== قائمة الزبائن =====
-function renderCustomerList(filter = '') {
-  const list = document.getElementById('customerList');
+// ===== نافذة اختيار الزبون =====
+function showCustomerSelector() {
+  renderCustomerListModal();
+  document.getElementById('customerSelectorModal').style.display = 'flex';
+}
+
+function renderCustomerListModal() {
+  const list = document.getElementById('customerListModal');
   list.innerHTML = '';
 
-  const filtered = customers.filter(c =>
-    c.name.includes(filter) || c.phone.includes(filter)
-  );
+  if (customers.length === 0) {
+    list.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">لا توجد زبائن. أضف زبون جديد أولاً.</div>';
+    return;
+  }
 
-  filtered.forEach(customer => {
+  customers.forEach(customer => {
     const item = document.createElement('div');
     item.className = 'customer-item' + (customer.id === selectedCustomerId ? ' selected' : '');
-    item.textContent = customer.name;
-    item.onclick = () => selectCustomer(customer.id);
+    item.innerHTML = `
+      <div><strong>${customer.name}</strong></div>
+      <div style="font-size:11px; color:#666;">${customer.phone || 'بدون هاتف'}</div>
+    `;
+    item.onclick = () => {
+      selectCustomer(customer.id);
+      closeModal('customerSelectorModal');
+    };
     list.appendChild(item);
   });
 }
 
 function searchCustomers() {
-  const query = document.getElementById('customerSearch').value;
-  renderCustomerList(query);
+  const query = document.getElementById('customerSearchInput').value.toLowerCase();
+  const list = document.getElementById('customerListModal');
+  list.innerHTML = '';
+
+  const filtered = customers.filter(c =>
+    c.name.toLowerCase().includes(query) || (c.phone && c.phone.includes(query))
+  );
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">لا توجد نتائج.</div>';
+    return;
+  }
+
+  filtered.forEach(customer => {
+    const item = document.createElement('div');
+    item.className = 'customer-item' + (customer.id === selectedCustomerId ? ' selected' : '');
+    item.innerHTML = `
+      <div><strong>${customer.name}</strong></div>
+      <div style="font-size:11px; color:#666;">${customer.phone || 'بدون هاتف'}</div>
+    `;
+    item.onclick = () => {
+      selectCustomer(customer.id);
+      closeModal('customerSelectorModal');
+    };
+    list.appendChild(item);
+  });
 }
 
 function selectCustomer(customerId) {
@@ -99,23 +225,20 @@ function selectCustomer(customerId) {
   const customer = customers.find(c => c.id === customerId);
   if (customer) {
     document.getElementById('customerName').value = customer.name;
-    document.getElementById('customerPhone').value = customer.phone || '';
-    document.getElementById('customerAddress').value = customer.address || '';
-    renderCustomerList(document.getElementById('customerSearch').value);
     setStatus(`تم تحديد الزبون: ${customer.name}`);
   }
 }
 
 // ===== إضافة زبون جديد =====
-function addNewCustomer() {
+function addNewCustomerModal() {
   document.getElementById('newCustomerName').value = '';
   document.getElementById('newCustomerPhone').value = '';
   document.getElementById('newCustomerAddress').value = '';
-  document.getElementById('newCustomerNotes').value = '';
-  document.getElementById('customerModal').style.display = 'flex';
+  closeModal('customerSelectorModal');
+  document.getElementById('addCustomerModal').style.display = 'flex';
 }
 
-function saveCustomer() {
+function saveNewCustomer() {
   const name = document.getElementById('newCustomerName').value.trim();
   if (!name) {
     alert('يرجى إدخال اسم الزبون');
@@ -126,21 +249,16 @@ function saveCustomer() {
     id: Date.now(),
     name: name,
     phone: document.getElementById('newCustomerPhone').value.trim(),
-    address: document.getElementById('newCustomerAddress').value.trim(),
-    notes: document.getElementById('newCustomerNotes').value.trim(),
-    totalPurchases: 0
+    address: document.getElementById('newCustomerAddress').value.trim()
   };
 
   customers.push(newCustomer);
-  saveCustomersToStorage();
-  renderCustomerList();
-  closeModal('customerModal');
+  saveDataToLocalStorage();
+  if (currentUser) saveDataToFirebase();
+  
+  closeModal('addCustomerModal');
   selectCustomer(newCustomer.id);
   setStatus(`تم إضافة الزبون: ${name}`);
-}
-
-function saveCustomersToStorage() {
-  localStorage.setItem('customers', JSON.stringify(customers));
 }
 
 // ===== إدارة صفوف الجدول =====
@@ -160,29 +278,17 @@ function addRow() {
     <td class="col-num">${rowIndex}</td>
     <td class="col-type">
       <input type="text" class="table-input" id="type-${rid}" list="itemsList"
-        placeholder="النوع / الصنف" onchange="calculateRowTotal(${rid})" oninput="calculateRowTotal(${rid})">
-    </td>
-    <td class="col-desc">
-      <input type="text" class="table-input" id="desc-${rid}" placeholder="الوصف">
-    </td>
-    <td class="col-unit">
-      <select class="table-select" id="unit-${rid}">
-        ${units.map(u => `<option value="${u}">${u}</option>`).join('')}
-      </select>
+        placeholder="النوع" onchange="calculateRowTotal(${rid})" oninput="calculateRowTotal(${rid})">
     </td>
     <td class="col-qty">
-      <input type="number" class="table-input" id="qty-${rid}" value="1" min="0" step="0.001"
+      <input type="number" class="table-input" id="qty-${rid}" value="0" min="0" step="0.001"
         onchange="calculateRowTotal(${rid})" oninput="calculateRowTotal(${rid})">
     </td>
     <td class="col-price">
       <input type="number" class="table-input" id="price-${rid}" value="0" min="0" step="0.01"
         onchange="calculateRowTotal(${rid})" oninput="calculateRowTotal(${rid})">
     </td>
-    <td class="col-discount">
-      <input type="number" class="table-input" id="discount-${rid}" value="0" min="0" max="100" step="0.1"
-        onchange="calculateRowTotal(${rid})" oninput="calculateRowTotal(${rid})">
-    </td>
-    <td class="col-total total-cell" id="total-${rid}">0.00</td>
+    <td class="col-total total-cell" id="total-${rid}">0</td>
     <td class="col-action">
       <button class="delete-row-btn" onclick="deleteRow(${rid}, event)">✕</button>
     </td>
@@ -191,14 +297,6 @@ function addRow() {
   tbody.appendChild(tr);
   updateRowNumbers();
   updateStatusBar();
-
-  // التركيز على حقل النوع في الصف الجديد
-  setTimeout(() => {
-    const typeInput = document.getElementById(`type-${rid}`);
-    if (typeInput) typeInput.focus();
-  }, 50);
-
-  return rid;
 }
 
 function selectRow(rid) {
@@ -255,15 +353,12 @@ function clearTable() {
 function calculateRowTotal(rid) {
   const qty = parseFloat(document.getElementById(`qty-${rid}`)?.value) || 0;
   const price = parseFloat(document.getElementById(`price-${rid}`)?.value) || 0;
-  const discount = parseFloat(document.getElementById(`discount-${rid}`)?.value) || 0;
 
-  const subtotal = qty * price;
-  const discountAmount = subtotal * (discount / 100);
-  const total = subtotal - discountAmount;
+  const total = qty * price;
 
   const totalCell = document.getElementById(`total-${rid}`);
   if (totalCell) {
-    totalCell.textContent = total.toFixed(2);
+    totalCell.textContent = total === 0 ? '0' : total.toFixed(2).replace(/\.?0+$/, '');
   }
 
   calculateTotals();
@@ -271,30 +366,18 @@ function calculateRowTotal(rid) {
 
 function calculateTotals() {
   const rows = document.querySelectorAll('#invoiceBody tr');
-  let subtotal = 0;
-  let totalDiscountAmount = 0;
+  let grandTotal = 0;
 
   rows.forEach(tr => {
     const rid = tr.id.replace('row-', '');
     const qty = parseFloat(document.getElementById(`qty-${rid}`)?.value) || 0;
     const price = parseFloat(document.getElementById(`price-${rid}`)?.value) || 0;
-    const discount = parseFloat(document.getElementById(`discount-${rid}`)?.value) || 0;
 
-    const rowSubtotal = qty * price;
-    const rowDiscount = rowSubtotal * (discount / 100);
-    subtotal += rowSubtotal;
-    totalDiscountAmount += rowDiscount;
+    grandTotal += qty * price;
   });
 
-  const afterDiscount = subtotal - totalDiscountAmount;
-  const taxRate = parseFloat(document.getElementById('taxRate').value) || 0;
-  const taxAmount = afterDiscount * (taxRate / 100);
-  const grandTotal = afterDiscount + taxAmount;
-
-  document.getElementById('subtotal').textContent = subtotal.toFixed(2);
-  document.getElementById('totalDiscount').textContent = totalDiscountAmount.toFixed(2);
-  document.getElementById('taxAmount').textContent = taxAmount.toFixed(2);
-  document.getElementById('grandTotal').textContent = grandTotal.toFixed(2);
+  const grandTotalEl = document.getElementById('grandTotal');
+  grandTotalEl.textContent = grandTotal === 0 ? '0' : grandTotal.toFixed(2).replace(/\.?0+$/, '');
 
   calculateBalance();
 }
@@ -305,7 +388,7 @@ function calculateBalance() {
   const balance = grandTotal - amountPaid;
 
   const balanceEl = document.getElementById('balance');
-  balanceEl.textContent = balance.toFixed(2);
+  balanceEl.textContent = balance === 0 ? '0' : balance.toFixed(2).replace(/\.?0+$/, '');
   balanceEl.style.color = balance > 0 ? '#cc0000' : (balance < 0 ? '#006600' : '#000');
 }
 
@@ -329,12 +412,9 @@ function saveInvoice() {
     if (type || qty > 0 || price > 0) {
       items.push({
         type: type,
-        desc: document.getElementById(`desc-${rid}`)?.value || '',
-        unit: document.getElementById(`unit-${rid}`)?.value || 'قطعة',
         qty: qty,
         price: price,
-        discount: parseFloat(document.getElementById(`discount-${rid}`)?.value) || 0,
-        total: parseFloat(document.getElementById(`total-${rid}`)?.textContent) || 0
+        total: qty * price
       });
     }
   });
@@ -346,14 +426,8 @@ function saveInvoice() {
     type: document.getElementById('invoiceType').value,
     customerId: selectedCustomerId,
     customerName: customerName,
-    customerPhone: document.getElementById('customerPhone').value,
-    customerAddress: document.getElementById('customerAddress').value,
     items: items,
     notes: document.getElementById('invoiceNotes').value,
-    subtotal: parseFloat(document.getElementById('subtotal').textContent) || 0,
-    totalDiscount: parseFloat(document.getElementById('totalDiscount').textContent) || 0,
-    taxRate: parseFloat(document.getElementById('taxRate').value) || 0,
-    taxAmount: parseFloat(document.getElementById('taxAmount').textContent) || 0,
     grandTotal: parseFloat(document.getElementById('grandTotal').textContent) || 0,
     amountPaid: parseFloat(document.getElementById('amountPaid').value) || 0,
     balance: parseFloat(document.getElementById('balance').textContent) || 0,
@@ -369,52 +443,33 @@ function saveInvoice() {
     savedInvoices.unshift(invoice);
     currentInvoiceId = invoice.id;
     invoiceCounter++;
-    localStorage.setItem('invoiceCounter', invoiceCounter);
   }
 
-  localStorage.setItem('savedInvoices', JSON.stringify(savedInvoices));
+  saveDataToLocalStorage();
+  if (currentUser) saveDataToFirebase();
+  
   renderSavedInvoices();
-  setStatus(`تم حفظ الفاتورة رقم ${invoice.number} للزبون: ${customerName}`);
-  alert(`تم حفظ الفاتورة بنجاح!\nرقم الفاتورة: ${invoice.number}\nالزبون: ${customerName}\nالإجمالي: ${invoice.grandTotal.toFixed(2)} ل.س`);
+  setStatus(`تم حفظ الفاتورة رقم ${invoice.number}`);
+  alert(`تم حفظ الفاتورة!\nرقم: ${invoice.number}\nالزبون: ${customerName}\nالإجمالي: ${invoice.grandTotal}`);
 }
 
 // ===== فاتورة جديدة =====
 function newInvoice() {
-  if (confirm('هل تريد إنشاء فاتورة جديدة؟ سيتم مسح البيانات الحالية.')) {
+  if (confirm('هل تريد إنشاء فاتورة جديدة؟')) {
     currentInvoiceId = null;
     selectedCustomerId = null;
     document.getElementById('customerName').value = '';
-    document.getElementById('customerPhone').value = '';
-    document.getElementById('customerAddress').value = '';
     document.getElementById('invoiceNotes').value = '';
     document.getElementById('amountPaid').value = '0';
-    document.getElementById('taxRate').value = '0';
     document.getElementById('invoiceBody').innerHTML = '';
     rowIdCounter = 0;
     updateInvoiceNumber();
     setTodayDate();
     calculateTotals();
     addRow();
-    renderCustomerList();
     setStatus('فاتورة جديدة');
 
-    // إزالة التحديد من الفواتير المحفوظة
     document.querySelectorAll('.saved-invoice-item').forEach(el => el.classList.remove('active'));
-  }
-}
-
-// ===== حذف الفاتورة =====
-function deleteInvoice() {
-  if (!currentInvoiceId) {
-    alert('لا توجد فاتورة محفوظة للحذف');
-    return;
-  }
-  if (confirm('هل تريد حذف هذه الفاتورة نهائياً؟')) {
-    savedInvoices = savedInvoices.filter(inv => inv.id !== currentInvoiceId);
-    localStorage.setItem('savedInvoices', JSON.stringify(savedInvoices));
-    renderSavedInvoices();
-    newInvoice();
-    setStatus('تم حذف الفاتورة');
   }
 }
 
@@ -423,15 +478,19 @@ function renderSavedInvoices() {
   const list = document.getElementById('savedInvoicesList');
   list.innerHTML = '';
 
+  if (savedInvoices.length === 0) {
+    list.innerHTML = '<div style="padding:10px; text-align:center; color:#999; font-size:11px;">لا توجد فواتير</div>';
+    return;
+  }
+
   savedInvoices.forEach(invoice => {
     const item = document.createElement('div');
     item.className = 'saved-invoice-item' + (invoice.id === currentInvoiceId ? ' active' : '');
     item.onclick = () => loadInvoice(invoice.id);
     item.innerHTML = `
       <div class="saved-invoice-num">فاتورة #${invoice.number}</div>
-      <div class="saved-invoice-customer">${invoice.customerName}</div>
-      <div style="font-size:10px; color:#888;">${invoice.date}</div>
-      <div style="font-size:10px; font-weight:bold; color:#0a246a;">${invoice.grandTotal.toFixed(2)} ل.س</div>
+      <div style="font-size:10px; color:#666;">${invoice.customerName}</div>
+      <div style="font-size:10px; font-weight:bold; color:#0a246a;">${invoice.grandTotal}</div>
     `;
     list.appendChild(item);
   });
@@ -449,13 +508,9 @@ function loadInvoice(invoiceId) {
   document.getElementById('invoiceDate').value = invoice.date;
   document.getElementById('invoiceType').value = invoice.type;
   document.getElementById('customerName').value = invoice.customerName;
-  document.getElementById('customerPhone').value = invoice.customerPhone || '';
-  document.getElementById('customerAddress').value = invoice.customerAddress || '';
   document.getElementById('invoiceNotes').value = invoice.notes || '';
-  document.getElementById('taxRate').value = invoice.taxRate || 0;
   document.getElementById('amountPaid').value = invoice.amountPaid || 0;
 
-  // مسح الجدول وإعادة ملئه
   document.getElementById('invoiceBody').innerHTML = '';
   rowIdCounter = 0;
 
@@ -463,23 +518,16 @@ function loadInvoice(invoiceId) {
     const rid = addRow();
     setTimeout(() => {
       const typeEl = document.getElementById(`type-${rid}`);
-      const descEl = document.getElementById(`desc-${rid}`);
-      const unitEl = document.getElementById(`unit-${rid}`);
       const qtyEl = document.getElementById(`qty-${rid}`);
       const priceEl = document.getElementById(`price-${rid}`);
-      const discountEl = document.getElementById(`discount-${rid}`);
 
       if (typeEl) typeEl.value = item.type;
-      if (descEl) descEl.value = item.desc;
-      if (unitEl) unitEl.value = item.unit;
       if (qtyEl) qtyEl.value = item.qty;
       if (priceEl) priceEl.value = item.price;
-      if (discountEl) discountEl.value = item.discount;
       calculateRowTotal(rid);
     }, 10);
   });
 
-  renderCustomerList();
   renderSavedInvoices();
   setStatus(`تم تحميل الفاتورة رقم ${invoice.number}`);
 }
@@ -496,17 +544,11 @@ function printInvoice() {
   const invoiceNum = document.getElementById('invoiceNumber').value;
   const invoiceDate = document.getElementById('invoiceDate').value;
   const invoiceType = document.getElementById('invoiceType').value;
-  const customerPhone = document.getElementById('customerPhone').value;
-  const customerAddress = document.getElementById('customerAddress').value;
   const notes = document.getElementById('invoiceNotes').value;
-  const subtotal = document.getElementById('subtotal').textContent;
-  const totalDiscount = document.getElementById('totalDiscount').textContent;
-  const taxAmount = document.getElementById('taxAmount').textContent;
   const grandTotal = document.getElementById('grandTotal').textContent;
   const amountPaid = document.getElementById('amountPaid').value;
   const balance = document.getElementById('balance').textContent;
 
-  // جمع بيانات الصفوف
   const rows = document.querySelectorAll('#invoiceBody tr');
   let itemsHTML = '';
   let rowNum = 1;
@@ -514,23 +556,17 @@ function printInvoice() {
   rows.forEach(tr => {
     const rid = tr.id.replace('row-', '');
     const type = document.getElementById(`type-${rid}`)?.value || '';
-    const desc = document.getElementById(`desc-${rid}`)?.value || '';
-    const unit = document.getElementById(`unit-${rid}`)?.value || '';
     const qty = document.getElementById(`qty-${rid}`)?.value || '0';
     const price = document.getElementById(`price-${rid}`)?.value || '0';
-    const discount = document.getElementById(`discount-${rid}`)?.value || '0';
-    const total = document.getElementById(`total-${rid}`)?.textContent || '0.00';
+    const total = document.getElementById(`total-${rid}`)?.textContent || '0';
 
     if (type || parseFloat(qty) > 0) {
       itemsHTML += `
         <tr>
           <td>${rowNum++}</td>
           <td>${type}</td>
-          <td>${desc}</td>
-          <td>${unit}</td>
           <td>${qty}</td>
-          <td>${parseFloat(price).toFixed(2)}</td>
-          <td>${discount}%</td>
+          <td>${price}</td>
           <td><strong>${total}</strong></td>
         </tr>
       `;
@@ -546,24 +582,15 @@ function printInvoice() {
       <style>
         body { font-family: Arial, sans-serif; font-size: 13px; direction: rtl; margin: 20px; }
         .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
-        .header h1 { font-size: 20px; margin: 0; }
-        .header h2 { font-size: 16px; margin: 5px 0; color: #333; }
-        .info-table { width: 100%; margin-bottom: 15px; }
-        .info-table td { padding: 4px 8px; font-size: 12px; }
-        .info-label { font-weight: bold; width: 100px; }
-        table.items { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        table.items th { background: #333; color: white; padding: 6px; text-align: center; border: 1px solid #000; }
-        table.items td { padding: 5px 8px; border: 1px solid #ccc; text-align: center; }
-        table.items tr:nth-child(even) { background: #f5f5f5; }
-        .totals { float: left; width: 300px; border: 1px solid #ccc; padding: 10px; }
-        .totals table { width: 100%; }
-        .totals td { padding: 4px 8px; font-size: 12px; }
-        .totals .label { font-weight: bold; text-align: right; }
-        .totals .value { text-align: left; font-family: monospace; }
-        .grand-total { font-size: 16px; font-weight: bold; color: #000; border-top: 2px solid #000; }
-        .notes { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px; }
-        .footer { text-align: center; margin-top: 30px; font-size: 11px; color: #666; border-top: 1px solid #ccc; padding-top: 10px; }
-        .clearfix::after { content: ''; display: table; clear: both; }
+        .header h1 { font-size: 18px; margin: 0; }
+        .info { margin-bottom: 15px; }
+        .info div { margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        th { background: #333; color: white; padding: 8px; text-align: center; border: 1px solid #000; }
+        td { padding: 6px; border: 1px solid #ccc; text-align: center; }
+        tr:nth-child(even) { background: #f5f5f5; }
+        .totals { margin-top: 15px; }
+        .total-row { font-weight: bold; font-size: 14px; }
       </style>
     </head>
     <body>
@@ -572,35 +599,19 @@ function printInvoice() {
         <h2>${invoiceType === 'بيع' ? 'فاتورة مبيعات' : invoiceType === 'شراء' ? 'فاتورة مشتريات' : 'فاتورة مرتجع'}</h2>
       </div>
 
-      <table class="info-table">
-        <tr>
-          <td class="info-label">رقم الفاتورة:</td>
-          <td><strong>${invoiceNum}</strong></td>
-          <td class="info-label">التاريخ:</td>
-          <td>${invoiceDate}</td>
-        </tr>
-        <tr>
-          <td class="info-label">اسم الزبون:</td>
-          <td><strong>${customerName}</strong></td>
-          <td class="info-label">الهاتف:</td>
-          <td>${customerPhone}</td>
-        </tr>
-        <tr>
-          <td class="info-label">العنوان:</td>
-          <td colspan="3">${customerAddress}</td>
-        </tr>
-      </table>
+      <div class="info">
+        <div><strong>رقم الفاتورة:</strong> ${invoiceNum}</div>
+        <div><strong>التاريخ:</strong> ${invoiceDate}</div>
+        <div><strong>اسم الزبون:</strong> ${customerName}</div>
+      </div>
 
-      <table class="items">
+      <table>
         <thead>
           <tr>
             <th>#</th>
-            <th>النوع / الصنف</th>
-            <th>الوصف</th>
-            <th>الوحدة</th>
+            <th>النوع</th>
             <th>الكمية</th>
             <th>السعر</th>
-            <th>الخصم</th>
             <th>المجموع</th>
           </tr>
         </thead>
@@ -609,23 +620,16 @@ function printInvoice() {
         </tbody>
       </table>
 
-      <div class="clearfix">
-        <div class="totals">
-          <table>
-            <tr><td class="label">المجموع الفرعي:</td><td class="value">${subtotal} ل.س</td></tr>
-            <tr><td class="label">الخصم الإجمالي:</td><td class="value">${totalDiscount} ل.س</td></tr>
-            <tr><td class="label">الضريبة:</td><td class="value">${taxAmount} ل.س</td></tr>
-            <tr class="grand-total"><td class="label">الإجمالي الكلي:</td><td class="value">${grandTotal} ل.س</td></tr>
-            <tr><td class="label">المبلغ المدفوع:</td><td class="value">${parseFloat(amountPaid).toFixed(2)} ل.س</td></tr>
-            <tr><td class="label" style="color:red;">المتبقي:</td><td class="value" style="color:red;">${balance} ل.س</td></tr>
-          </table>
-        </div>
+      <div class="totals">
+        <div class="total-row">الإجمالي: ${grandTotal}</div>
+        <div>المبلغ المدفوع: ${amountPaid}</div>
+        <div style="color:red;">المتبقي: ${balance}</div>
       </div>
 
-      ${notes ? `<div class="notes"><strong>ملاحظات:</strong> ${notes}</div>` : ''}
+      ${notes ? `<div style="margin-top:15px;"><strong>ملاحظات:</strong> ${notes}</div>` : ''}
 
-      <div class="footer">
-        <p>شكراً لتعاملكم معنا - برنامج أبو محمود السوري للمحاسبة</p>
+      <div style="margin-top:30px; text-align:center; font-size:11px; color:#666; border-top:1px solid #ccc; padding-top:10px;">
+        <p>شكراً لتعاملكم معنا</p>
         <p>تم الطباعة بتاريخ: ${new Date().toLocaleDateString('ar-SY')}</p>
       </div>
 
@@ -660,7 +664,6 @@ function exportData() {
 
 // ===== عرض التقارير =====
 function showReports() {
-  closeAllMenus();
   if (savedInvoices.length === 0) {
     alert('لا توجد فواتير محفوظة');
     return;
@@ -670,7 +673,6 @@ function showReports() {
   const totalPurchases = savedInvoices.filter(i => i.type === 'شراء').reduce((sum, i) => sum + i.grandTotal, 0);
   const totalBalance = savedInvoices.reduce((sum, i) => sum + i.balance, 0);
 
-  // إحصائيات الزبائن
   const customerStats = {};
   savedInvoices.forEach(inv => {
     if (!customerStats[inv.customerName]) {
@@ -685,22 +687,18 @@ function showReports() {
     .slice(0, 10);
 
   let html = `
-    <div style="display:flex; gap:20px; margin-bottom:15px; flex-wrap:wrap;">
-      <div style="background:#e8f4fd; border:1px solid #4a7ab5; padding:10px 20px; text-align:center; flex:1;">
+    <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+      <div style="background:#e8f4fd; border:1px solid #4a7ab5; padding:10px; text-align:center; flex:1;">
         <div style="font-size:11px; color:#555;">إجمالي المبيعات</div>
-        <div style="font-size:18px; font-weight:bold; color:#0a246a;">${totalSales.toFixed(2)} ل.س</div>
+        <div style="font-size:16px; font-weight:bold; color:#0a246a;">${totalSales}</div>
       </div>
-      <div style="background:#e8fde8; border:1px solid #4ab54a; padding:10px 20px; text-align:center; flex:1;">
+      <div style="background:#e8fde8; border:1px solid #4ab54a; padding:10px; text-align:center; flex:1;">
         <div style="font-size:11px; color:#555;">إجمالي المشتريات</div>
-        <div style="font-size:18px; font-weight:bold; color:#006600;">${totalPurchases.toFixed(2)} ل.س</div>
+        <div style="font-size:16px; font-weight:bold; color:#006600;">${totalPurchases}</div>
       </div>
-      <div style="background:#fde8e8; border:1px solid #b54a4a; padding:10px 20px; text-align:center; flex:1;">
+      <div style="background:#fde8e8; border:1px solid #b54a4a; padding:10px; text-align:center; flex:1;">
         <div style="font-size:11px; color:#555;">إجمالي الديون</div>
-        <div style="font-size:18px; font-weight:bold; color:#cc0000;">${totalBalance.toFixed(2)} ل.س</div>
-      </div>
-      <div style="background:#fdf5e8; border:1px solid #b5954a; padding:10px 20px; text-align:center; flex:1;">
-        <div style="font-size:11px; color:#555;">عدد الفواتير</div>
-        <div style="font-size:18px; font-weight:bold; color:#885500;">${savedInvoices.length}</div>
+        <div style="font-size:16px; font-weight:bold; color:#cc0000;">${totalBalance}</div>
       </div>
     </div>
 
@@ -708,19 +706,19 @@ function showReports() {
     <table style="width:100%; border-collapse:collapse; font-size:12px;">
       <thead>
         <tr style="background:#333; color:white;">
-          <th style="padding:5px 8px; border:1px solid #000;">#</th>
-          <th style="padding:5px 8px; border:1px solid #000;">اسم الزبون</th>
-          <th style="padding:5px 8px; border:1px solid #000;">عدد الفواتير</th>
-          <th style="padding:5px 8px; border:1px solid #000;">إجمالي المشتريات</th>
+          <th style="padding:6px; border:1px solid #000;">#</th>
+          <th style="padding:6px; border:1px solid #000;">اسم الزبون</th>
+          <th style="padding:6px; border:1px solid #000;">عدد الفواتير</th>
+          <th style="padding:6px; border:1px solid #000;">الإجمالي</th>
         </tr>
       </thead>
       <tbody>
         ${topCustomers.map(([name, stats], idx) => `
           <tr style="background:${idx % 2 === 0 ? '#f5f9ff' : 'white'};">
-            <td style="padding:4px 8px; border:1px solid #ccc; text-align:center;">${idx + 1}</td>
-            <td style="padding:4px 8px; border:1px solid #ccc;">${name}</td>
-            <td style="padding:4px 8px; border:1px solid #ccc; text-align:center;">${stats.count}</td>
-            <td style="padding:4px 8px; border:1px solid #ccc; text-align:center; font-weight:bold;">${stats.total.toFixed(2)} ل.س</td>
+            <td style="padding:6px; border:1px solid #ccc;">${idx + 1}</td>
+            <td style="padding:6px; border:1px solid #ccc;">${name}</td>
+            <td style="padding:6px; border:1px solid #ccc; text-align:center;">${stats.count}</td>
+            <td style="padding:6px; border:1px solid #ccc; text-align:center; font-weight:bold;">${stats.total}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -731,53 +729,51 @@ function showReports() {
   document.getElementById('reportsModal').style.display = 'flex';
 }
 
-// ===== عرض قائمة الزبائن الكاملة =====
+// ===== عرض قائمة الزبائن =====
 function showCustomers() {
-  closeAllMenus();
   const tbody = document.getElementById('customersTableBody');
   tbody.innerHTML = '';
 
-  customers.forEach((customer, idx) => {
-    const totalPurchases = savedInvoices
-      .filter(inv => inv.customerId === customer.id)
-      .reduce((sum, inv) => sum + inv.grandTotal, 0);
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${idx + 1}</td>
-      <td>${customer.name}</td>
-      <td>${customer.phone || '-'}</td>
-      <td>${customer.address || '-'}</td>
-      <td>${totalPurchases.toFixed(2)} ل.س</td>
-      <td>
-        <button onclick="selectCustomerFromList(${customer.id})" style="padding:2px 8px; cursor:pointer; font-size:11px;">تحديد</button>
-        <button onclick="deleteCustomer(${customer.id})" style="padding:2px 8px; cursor:pointer; font-size:11px; color:red;">حذف</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
+  if (customers.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="padding:20px; text-align:center; color:#999;">لا توجد زبائن. أضف زبون جديد.</td></tr>';
+  } else {
+    customers.forEach((customer, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td>${customer.name}</td>
+        <td>${customer.phone || '-'}</td>
+        <td>
+          <button onclick="deleteCustomer(${customer.id})" style="padding:4px 8px; cursor:pointer; font-size:11px; color:red;">حذف</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
 
   document.getElementById('customersListModal').style.display = 'flex';
-}
-
-function selectCustomerFromList(customerId) {
-  selectCustomer(customerId);
-  closeModal('customersListModal');
 }
 
 function deleteCustomer(customerId) {
   if (confirm('هل تريد حذف هذا الزبون؟')) {
     customers = customers.filter(c => c.id !== customerId);
-    saveCustomersToStorage();
-    renderCustomerList();
+    saveDataToLocalStorage();
+    if (currentUser) saveDataToFirebase();
     showCustomers();
     setStatus('تم حذف الزبون');
   }
 }
 
-// ===== نافذة حول البرنامج =====
+// ===== تسجيل الدخول بـ Google =====
+function showLoginModal() {
+  if (!firebaseInitialized) {
+    alert('Firebase لم يتم تكوينه. يرجى قراءة التعليمات في README.md');
+    return;
+  }
+  document.getElementById('loginModal').style.display = 'flex';
+}
+
 function showAbout() {
-  closeAllMenus();
   document.getElementById('aboutModal').style.display = 'flex';
 }
 
@@ -793,10 +789,10 @@ function setStatus(message) {
 
 function updateStatusBar() {
   const rowCount = document.querySelectorAll('#invoiceBody tr').length;
-  document.getElementById('rowCount').textContent = `عدد الأصناف: ${rowCount}`;
+  // يتم تحديثه في شريط الحالة
 }
 
-// ===== قائمة الأصناف الشائعة (datalist) =====
+// ===== قائمة الأصناف الشائعة =====
 const datalist = document.createElement('datalist');
 datalist.id = 'itemsList';
 commonItems.forEach(item => {
@@ -819,9 +815,6 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
   } else if (e.key === 'F8') {
     printInvoice();
-    e.preventDefault();
-  } else if (e.key === 'Delete' && e.ctrlKey) {
-    deleteSelectedRow();
     e.preventDefault();
   }
 });
