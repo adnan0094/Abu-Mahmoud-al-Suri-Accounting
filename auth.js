@@ -610,6 +610,13 @@ function toggleGoogleLogin() {
     
     // تهيئة FirebaseUI عند الحاجة
     if (firebaseInitialized) {
+      // حذف أي نسخة سابقة من FirebaseUI
+      const existingUI = document.getElementById('firebaseUILogin');
+      if (existingUI) {
+        existingUI.innerHTML = '';
+      }
+      
+      // إنشاء نسخة جديدة من FirebaseUI بإعدادات محسّنة
       const ui = new firebaseui.auth.AuthUI(firebase.auth());
       const uiConfig = {
         callbacks: {
@@ -617,10 +624,11 @@ function toggleGoogleLogin() {
             return false;
           }
         },
-        signInFlow: 'popup',
+        signInFlow: 'popup', // استخدم popup لإظهار اختيار الحسابات
         signInOptions: [
           firebase.auth.GoogleAuthProvider.PROVIDER_ID
-        ]
+        ],
+        credentialHelper: firebaseui.auth.CredentialHelper.GOOGLE_YOLO // إظهار الحسابات المحفوظة
       };
       ui.start('#firebaseUILogin', uiConfig);
     }

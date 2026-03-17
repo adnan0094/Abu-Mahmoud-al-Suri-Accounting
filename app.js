@@ -662,7 +662,7 @@ function printInvoice() {
 
       <div class="footer">
         <p>شكراً لتعاملك معنا</p>
-        <p>جميع الحقوق محفوظة © 2024</p>
+        <p>جميع الحقوق محفوظة © 2026</p>
       </div>
 
       <script>
