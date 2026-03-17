@@ -45,6 +45,7 @@
         
         <div class="form-footer">
           <p>ليس لديك حساب؟ <a href="#" onclick="toggleRegisterForm(event)">إنشاء حساب جديد</a></p>
+          <p><a href="#" onclick="toggleForgotPasswordForm(event)">نسيت كلمة المرور؟</a></p>
         </div>
       </div>
 
@@ -80,6 +81,56 @@
         
         <div class="form-footer">
           <p>هل لديك حساب بالفعل؟ <a href="#" onclick="toggleRegisterForm(event)">تسجيل الدخول</a></p>
+        </div>
+      </div>
+      
+      <!-- نموذج استعادة كلمة المرور (مخفي في البداية) -->
+      <div id="forgotPasswordForm" class="login-form" style="display: none;">
+        <h2>استعادة كلمة المرور</h2>
+        
+        <div class="form-group">
+          <label for="forgotEmail">البريد الإلكتروني:</label>
+          <input type="email" id="forgotEmail" class="form-input" placeholder="أدخل بريدك الإلكتروني" autocomplete="email">
+          <small id="forgotEmailError" class="error-text"></small>
+        </div>
+        
+        <p style="font-size: 12px; color: #666; text-align: center; margin: 10px 0;">
+          سيتم إرسال رابط استعادة كلمة المرور إلى بريدك الإلكتروني
+        </p>
+        
+        <button class="btn-login" onclick="sendPasswordResetEmail()">إرسال رابط الاستعادة</button>
+        
+        <div class="form-footer">
+          <p><a href="#" onclick="toggleForgotPasswordForm(event)">← العودة لتسجيل الدخول</a></p>
+        </div>
+      </div>
+
+      <!-- نموذج تغيير كلمة المرور (مخفي في البداية) -->
+      <div id="changePasswordForm" class="login-form" style="display: none;">
+        <h2>تغيير كلمة المرور</h2>
+        
+        <div class="form-group">
+          <label for="currentPassword">كلمة المرور الحالية:</label>
+          <input type="password" id="currentPassword" class="form-input" placeholder="أدخل كلمة المرور الحالية" autocomplete="current-password">
+          <small id="currentPasswordError" class="error-text"></small>
+        </div>
+        
+        <div class="form-group">
+          <label for="newPassword">كلمة المرور الجديدة:</label>
+          <input type="password" id="newPassword" class="form-input" placeholder="أدخل كلمة المرور الجديدة" autocomplete="new-password">
+          <small id="newPasswordError" class="error-text"></small>
+        </div>
+        
+        <div class="form-group">
+          <label for="confirmNewPassword">تأكيد كلمة المرور الجديدة:</label>
+          <input type="password" id="confirmNewPassword" class="form-input" placeholder="أعد إدخال كلمة المرور الجديدة" autocomplete="new-password">
+          <small id="confirmNewPasswordError" class="error-text"></small>
+        </div>
+        
+        <button class="btn-login" onclick="changePassword()">تحديث كلمة المرور</button>
+        
+        <div class="form-footer">
+          <p><a href="#" onclick="closeChangePasswordModal()">← إلغاء</a></p>
         </div>
       </div>
       
@@ -144,6 +195,7 @@
   <div class="menu-item" onclick="exportData(); closeMenu('mainMenu')">📥 تصدير البيانات</div>
   <div class="menu-item" onclick="printInvoice(); closeMenu('mainMenu')">🖨️ طباعة</div>
   <div class="menu-divider"></div>
+  <div class="menu-item" onclick="openChangePasswordModal(); closeMenu('mainMenu')">🔐 تغيير كلمة المرور</div>
   <div class="menu-item" onclick="logoutUser(); closeMenu('mainMenu')">🚪 تسجيل الخروج</div>
   <div class="menu-item" onclick="showAbout(); closeMenu('mainMenu')">ℹ️ حول البرنامج</div>
 </div>
@@ -335,6 +387,34 @@
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeModal('reportsModal')">إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<!-- نافذة تغيير كلمة المرور -->
+<div class="modal-overlay" id="changePasswordModal" style="display:none;">
+  <div class="modal">
+    <div class="modal-title">تغيير كلمة المرور</div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>كلمة المرور الحالية:</label>
+        <input type="password" id="modalCurrentPassword" class="modal-input" placeholder="أدخل كلمة المرور الحالية" autocomplete="current-password">
+        <small id="modalCurrentPasswordError" class="error-text"></small>
+      </div>
+      <div class="form-group">
+        <label>كلمة المرور الجديدة:</label>
+        <input type="password" id="modalNewPassword" class="modal-input" placeholder="أدخل كلمة مرور جديدة" autocomplete="new-password">
+        <small id="modalNewPasswordError" class="error-text"></small>
+      </div>
+      <div class="form-group">
+        <label>تأكيد كلمة المرور الجديدة:</label>
+        <input type="password" id="modalConfirmNewPassword" class="modal-input" placeholder="أعد إدخال كلمة المرور" autocomplete="new-password">
+        <small id="modalConfirmNewPasswordError" class="error-text"></small>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-save" onclick="changePasswordFromModal()">تحديث</button>
+      <button class="btn-cancel" onclick="closeModal('changePasswordModal')">إلغاء</button>
     </div>
   </div>
 </div>

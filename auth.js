@@ -190,22 +190,258 @@ function registerNewUser() {
     approved: true // المستخدمون المحليون معتمدون افتراضياً
   };
 
-  // حفظ المستخدم الجديد
+  // حفظ المستخدم المحلي
   saveUser(newUser);
 
-  // إظهار رسالة النجاح
-  showSuccessMessage('تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.');
+  // محاولة إضافة المستخدم إلى Firebase
+  if (firebaseInitialized) {
+    createFirebaseUser(email, password, newUser);
+  } else {
+    showSuccessMessage('تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.');
+    setTimeout(() => {
+      toggleRegisterForm(new Event('click'));
+    }, 1500);
+  }
+}
+
+// ===== دالة إنشاء مستخدم في Firebase =====
+function createFirebaseUser(email, password, localUser) {
+  firebase.auth().createUserWithEmailAndPassword(email, password)
+    .then((userCredential) => {
+      const firebaseUser = userCredential.user;
+      
+      // إضافة بيانات المستخدم إلى Firestore
+      db.collection('users').doc(firebaseUser.uid).set({
+        username: localUser.username,
+        email: email,
+        displayName: localUser.displayName,
+        approved: true,
+        createdAt: new Date(),
+        authMethod: 'email'
+      });
+
+      showSuccessMessage('تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.');
+      
+      setTimeout(() => {
+        toggleRegisterForm(new Event('click'));
+      }, 1500);
+    })
+    .catch((error) => {
+      console.error('Firebase registration error:', error);
+      // حتى لو فشل Firebase، تم حفظ المستخدم محلياً
+      showSuccessMessage('تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.');
+      
+      setTimeout(() => {
+        toggleRegisterForm(new Event('click'));
+      }, 1500);
+    });
+}
+
+// ===== دالة إرسال رابط استعادة كلمة المرور =====
+function sendPasswordResetEmail() {
+  const email = document.getElementById('forgotEmail').value.trim();
+
+  if (!isValidEmail(email)) {
+    showFieldError('forgotEmailError', 'البريد الإلكتروني غير صحيح');
+    return;
+  }
+
+  if (firebaseInitialized) {
+    firebase.auth().sendPasswordResetEmail(email)
+      .then(() => {
+        showSuccessMessageInForm('تم إرسال رابط استعادة كلمة المرور إلى بريدك الإلكتروني. يرجى التحقق من صندوق البريد الخاص بك.', 'forgotPasswordForm');
+        
+        setTimeout(() => {
+          document.getElementById('forgotEmail').value = '';
+          toggleForgotPasswordForm(new Event('click'));
+        }, 3000);
+      })
+      .catch((error) => {
+        console.error('Password reset error:', error);
+        showFieldError('forgotEmailError', 'حدث خطأ في إرسال البريد. تأكد من أن البريد الإلكتروني مسجل.');
+      });
+  } else {
+    // إذا لم يكن Firebase متاحاً، أظهر رسالة توضيحية
+    showFieldError('forgotEmailError', 'خدمة استعادة كلمة المرور غير متاحة حالياً. يرجى التواصل مع المسؤول.');
+  }
+}
+
+// ===== دالة تغيير كلمة المرور من النموذج الموجود في شاشة تسجيل الدخول =====
+function changePassword() {
+  const currentPassword = document.getElementById('currentPassword').value;
+  const newPassword = document.getElementById('newPassword').value;
+  const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+
+  clearPasswordErrors();
+
+  if (!currentPassword || !newPassword || !confirmNewPassword) {
+    showFieldError('currentPasswordError', 'يرجى ملء جميع الحقول');
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    showFieldError('newPasswordError', 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل');
+    return;
+  }
+
+  if (newPassword !== confirmNewPassword) {
+    showFieldError('confirmNewPasswordError', 'كلمات المرور الجديدة غير متطابقة');
+    return;
+  }
+
+  if (authMode === 'local') {
+    changeLocalPassword(currentPassword, newPassword);
+  } else if (authMode === 'firebase') {
+    changeFirebasePassword(currentPassword, newPassword);
+  }
+}
+
+// ===== دالة تغيير كلمة المرور من النافذة المنبثقة =====
+function changePasswordFromModal() {
+  const currentPassword = document.getElementById('modalCurrentPassword').value;
+  const newPassword = document.getElementById('modalNewPassword').value;
+  const confirmNewPassword = document.getElementById('modalConfirmNewPassword').value;
+
+  clearModalPasswordErrors();
+
+  if (!currentPassword || !newPassword || !confirmNewPassword) {
+    showFieldError('modalCurrentPasswordError', 'يرجى ملء جميع الحقول');
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    showFieldError('modalNewPasswordError', 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل');
+    return;
+  }
+
+  if (newPassword !== confirmNewPassword) {
+    showFieldError('modalConfirmNewPasswordError', 'كلمات المرور الجديدة غير متطابقة');
+    return;
+  }
+
+  if (authMode === 'local') {
+    changeLocalPasswordFromModal(currentPassword, newPassword);
+  } else if (authMode === 'firebase') {
+    changeFirebasePasswordFromModal(currentPassword, newPassword);
+  }
+}
+
+// ===== دالة تغيير كلمة المرور المحلية =====
+function changeLocalPassword(currentPassword, newPassword) {
+  const users = getAllUsers();
+  const userIndex = users.findIndex(u => u.id === currentUser.id);
+
+  if (userIndex === -1) {
+    showFieldError('currentPasswordError', 'لم يتم العثور على المستخدم');
+    return;
+  }
+
+  if (!verifyPassword(currentPassword, users[userIndex].password)) {
+    showFieldError('currentPasswordError', 'كلمة المرور الحالية غير صحيحة');
+    return;
+  }
+
+  // تحديث كلمة المرور
+  users[userIndex].password = hashPassword(newPassword);
+  localStorage.setItem('appUsers', JSON.stringify(users));
 
   // مسح النموذج
-  document.getElementById('registerUsername').value = '';
-  document.getElementById('registerEmail').value = '';
-  document.getElementById('registerPassword').value = '';
-  document.getElementById('confirmPassword').value = '';
+  document.getElementById('currentPassword').value = '';
+  document.getElementById('newPassword').value = '';
+  document.getElementById('confirmNewPassword').value = '';
 
-  // الانتقال إلى نموذج تسجيل الدخول
+  showSuccessMessageInForm('تم تحديث كلمة المرور بنجاح!', 'changePasswordForm');
+  
   setTimeout(() => {
-    toggleRegisterForm(new Event('click'));
-  }, 1500);
+    closeModal('changePasswordForm');
+  }, 2000);
+}
+
+// ===== دالة تغيير كلمة المرور المحلية من النافذة =====
+function changeLocalPasswordFromModal(currentPassword, newPassword) {
+  const users = getAllUsers();
+  const userIndex = users.findIndex(u => u.id === currentUser.id);
+
+  if (userIndex === -1) {
+    showFieldError('modalCurrentPasswordError', 'لم يتم العثور على المستخدم');
+    return;
+  }
+
+  if (!verifyPassword(currentPassword, users[userIndex].password)) {
+    showFieldError('modalCurrentPasswordError', 'كلمة المرور الحالية غير صحيحة');
+    return;
+  }
+
+  // تحديث كلمة المرور
+  users[userIndex].password = hashPassword(newPassword);
+  localStorage.setItem('appUsers', JSON.stringify(users));
+
+  // مسح النموذج
+  document.getElementById('modalCurrentPassword').value = '';
+  document.getElementById('modalNewPassword').value = '';
+  document.getElementById('modalConfirmNewPassword').value = '';
+
+  closeModal('changePasswordModal');
+  setStatus('تم تحديث كلمة المرور بنجاح!');
+}
+
+// ===== دالة تغيير كلمة المرور في Firebase =====
+function changeFirebasePassword(currentPassword, newPassword) {
+  const user = firebase.auth().currentUser;
+  const credential = firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
+
+  user.reauthenticateWithCredential(credential)
+    .then(() => {
+      user.updatePassword(newPassword)
+        .then(() => {
+          // مسح النموذج
+          document.getElementById('currentPassword').value = '';
+          document.getElementById('newPassword').value = '';
+          document.getElementById('confirmNewPassword').value = '';
+
+          showSuccessMessageInForm('تم تحديث كلمة المرور بنجاح!', 'changePasswordForm');
+          
+          setTimeout(() => {
+            closeModal('changePasswordForm');
+          }, 2000);
+        })
+        .catch((error) => {
+          console.error('Password update error:', error);
+          showFieldError('newPasswordError', 'حدث خطأ في تحديث كلمة المرور');
+        });
+    })
+    .catch((error) => {
+      console.error('Re-authentication error:', error);
+      showFieldError('currentPasswordError', 'كلمة المرور الحالية غير صحيحة');
+    });
+}
+
+// ===== دالة تغيير كلمة المرور في Firebase من النافذة =====
+function changeFirebasePasswordFromModal(currentPassword, newPassword) {
+  const user = firebase.auth().currentUser;
+  const credential = firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
+
+  user.reauthenticateWithCredential(credential)
+    .then(() => {
+      user.updatePassword(newPassword)
+        .then(() => {
+          // مسح النموذج
+          document.getElementById('modalCurrentPassword').value = '';
+          document.getElementById('modalNewPassword').value = '';
+          document.getElementById('modalConfirmNewPassword').value = '';
+
+          closeModal('changePasswordModal');
+          setStatus('تم تحديث كلمة المرور بنجاح!');
+        })
+        .catch((error) => {
+          console.error('Password update error:', error);
+          showFieldError('modalNewPasswordError', 'حدث خطأ في تحديث كلمة المرور');
+        });
+    })
+    .catch((error) => {
+      console.error('Re-authentication error:', error);
+      showFieldError('modalCurrentPasswordError', 'كلمة المرور الحالية غير صحيحة');
+    });
 }
 
 // ===== دوال المساعدة للمصادقة =====
@@ -274,6 +510,20 @@ function showSuccessMessage(message) {
   registerForm.insertBefore(successDiv, registerForm.firstChild);
 }
 
+function showSuccessMessageInForm(message, formId) {
+  const successDiv = document.createElement('div');
+  successDiv.className = 'success-message';
+  successDiv.textContent = message;
+  
+  const form = document.getElementById(formId);
+  const existingSuccess = form.querySelector('.success-message');
+  if (existingSuccess) {
+    existingSuccess.remove();
+  }
+  
+  form.insertBefore(successDiv, form.firstChild);
+}
+
 function showFieldError(fieldId, message) {
   const errorElement = document.getElementById(fieldId);
   if (errorElement) {
@@ -287,6 +537,28 @@ function clearErrorMessages() {
   errorElements.forEach(el => {
     el.textContent = '';
     el.style.display = 'none';
+  });
+}
+
+function clearPasswordErrors() {
+  const errorIds = ['currentPasswordError', 'newPasswordError', 'confirmNewPasswordError'];
+  errorIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = '';
+      el.style.display = 'none';
+    }
+  });
+}
+
+function clearModalPasswordErrors() {
+  const errorIds = ['modalCurrentPasswordError', 'modalNewPasswordError', 'modalConfirmNewPasswordError'];
+  errorIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = '';
+      el.style.display = 'none';
+    }
   });
 }
 
@@ -306,6 +578,23 @@ function toggleRegisterForm(event) {
   }
   
   clearErrorMessages();
+}
+
+function toggleForgotPasswordForm(event) {
+  event.preventDefault();
+  const loginForm = document.getElementById('usernamePasswordForm');
+  const forgotForm = document.getElementById('forgotPasswordForm');
+  
+  if (loginForm.style.display === 'none') {
+    loginForm.style.display = 'block';
+    forgotForm.style.display = 'none';
+  } else {
+    loginForm.style.display = 'none';
+    forgotForm.style.display = 'block';
+  }
+  
+  clearErrorMessages();
+  document.getElementById('forgotEmail').value = '';
 }
 
 function toggleGoogleLogin() {
@@ -336,6 +625,21 @@ function toggleGoogleLogin() {
       ui.start('#firebaseUILogin', uiConfig);
     }
   }
+}
+
+// ===== دالة فتح نافذة تغيير كلمة المرور =====
+function openChangePasswordModal() {
+  clearModalPasswordErrors();
+  document.getElementById('modalCurrentPassword').value = '';
+  document.getElementById('modalNewPassword').value = '';
+  document.getElementById('modalConfirmNewPassword').value = '';
+  document.getElementById('changePasswordModal').style.display = 'flex';
+}
+
+// ===== دالة إغلاق نافذة تغيير كلمة المرور =====
+function closeChangePasswordModal() {
+  document.getElementById('changePasswordModal').style.display = 'none';
+  clearModalPasswordErrors();
 }
 
 // ===== دالة إظهار واجهة التطبيق =====
@@ -502,6 +806,15 @@ document.addEventListener('DOMContentLoaded', function() {
     confirmPasswordInput.addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         registerNewUser();
+      }
+    });
+  }
+
+  const forgotEmailInput = document.getElementById('forgotEmail');
+  if (forgotEmailInput) {
+    forgotEmailInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        sendPasswordResetEmail();
       }
     });
   }
