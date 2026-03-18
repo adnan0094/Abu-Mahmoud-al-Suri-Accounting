@@ -481,6 +481,11 @@ button:active {
   overflow-y: auto;
 }
 
+.saved-invoices-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
 .saved-invoice-item {
   padding: 6px 8px;
   cursor: pointer;

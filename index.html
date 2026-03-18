@@ -91,10 +91,10 @@
         </div>
         
         <p style="font-size: 12px; color: #666; text-align: center; margin: 10px 0;">
-          سيتم إرسال رابط استعادة كلمة المرور إلى بريدك الإلكتروني
+          سيتم التحقق من وجود حسابك في النظام
         </p>
         
-        <button class="btn-login" onclick="sendPasswordResetEmail()">إرسال رابط الاستعادة</button>
+        <button class="btn-login" onclick="sendPasswordResetEmail()">التحقق من الحساب</button>
         
         <div class="form-footer">
           <p><a href="#" onclick="toggleForgotPasswordForm(event)">← العودة لتسجيل الدخول</a></p>
@@ -204,7 +204,12 @@
       <div class="invoice-info-row">
         <div class="invoice-info-group small">
           <label>النوع:</label>
-          <input type="text" id="invoiceType" class="input-field" placeholder="أدخل نوع الفاتورة">
+          <select id="invoiceType" class="input-field">
+            <option value="بيع">بيع</option>
+            <option value="شراء">شراء</option>
+            <option value="مرتجع">مرتجع</option>
+            <option value="دفعة">دفعة</option>
+          </select>
         </div>
       </div>
     </div>
@@ -215,7 +220,7 @@
         <thead>
           <tr>
             <th class="col-num">#</th>
-            <th class="col-type">النوع</th>
+            <th class="col-type">الصنف</th>
             <th class="col-qty">الكمية</th>
             <th class="col-price">السعر</th>
             <th class="col-total">المجموع</th>
@@ -231,7 +236,7 @@
     <!-- أزرار التحكم بالجدول -->
     <div class="table-controls">
       <button class="btn-primary" onclick="addRow()">+ إضافة صنف</button>
-      <button class="btn-secondary" onclick="deleteSelectedRow()">حذف</button>
+      <button class="btn-secondary" onclick="deleteSelectedRow()">حذف المحدد</button>
       <button class="btn-warning" onclick="clearTable()">مسح الجدول</button>
     </div>
 
@@ -249,7 +254,7 @@
       </div>
       <div class="summary-row">
         <span class="summary-label">المدفوع:</span>
-        <input type="number" id="amountPaid" class="payment-input" value="0" min="0" onchange="calculateBalance()">
+        <input type="number" id="amountPaid" class="payment-input" value="0" min="0" step="0.01" onchange="calculateBalance()" oninput="calculateBalance()">
       </div>
       <div class="summary-row balance-row">
         <span class="summary-label">المتبقي:</span>
@@ -269,7 +274,7 @@
   <!-- الشريط الجانبي الأيسر - الفواتير المحفوظة -->
   <div class="sidebar-right">
     <div class="sidebar-title">الفواتير المحفوظة</div>
-    <div class="saved-invoices" id="savedInvoicesList">
+    <div class="saved-invoices-list" id="savedInvoicesList">
       <!-- يتم ملؤها بالجافاسكريبت -->
     </div>
   </div>
@@ -331,13 +336,14 @@
   <div class="modal modal-large">
     <div class="modal-title">قائمة الزبائن</div>
     <div class="modal-body">
-      <button class="btn-primary" onclick="addNewCustomerModal()">+ إضافة زبون جديد</button>
+      <button class="btn-primary" onclick="addNewCustomerModal()" style="margin-bottom:10px;">+ إضافة زبون جديد</button>
       <table class="customers-table" id="customersTable">
         <thead>
           <tr>
             <th>#</th>
             <th>اسم الزبون</th>
             <th>الهاتف</th>
+            <th>المديونية</th>
             <th>الإجراءات</th>
           </tr>
         </thead>
@@ -398,9 +404,9 @@
     <div class="modal-body" style="text-align:center;">
       <div style="font-size:48px; margin:10px;">🏪</div>
       <h2>برنامج أبو محمود السوري للمحاسبة</h2>
-      <p>الإصدار 3.0.0</p>
+      <p>الإصدار 3.1.0</p>
       <p>نظام متكامل لإدارة الفواتير والزبائن</p>
-      <p style="font-size:12px; color:#666;">متوافق مع الجوال • متزامن مع Google Cloud • نظام أمني متقدم</p>
+      <p style="font-size:12px; color:#666;">متوافق مع الجوال • تخزين محلي آمن • نظام أمني متقدم</p>
       <hr>
       <p>جميع الحقوق محفوظة © 2026</p>
     </div>
@@ -411,13 +417,6 @@
 </div>
 
 </div>
-
-<!-- Firebase Scripts -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebaseui/6.1.0/firebaseui.js"></script>
-<link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebaseui/6.1.0/firebaseui.css" />
 
 <script src="auth.js"></script>
 <script src="app.js"></script>

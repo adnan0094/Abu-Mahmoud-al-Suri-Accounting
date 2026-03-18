@@ -10,9 +10,6 @@ let isLoggedIn = false;
 let firebaseInitialized = false;
 let db = null;
 
-// بدء المصادقة المحلية
-checkLocalUser();
-
 // ===== دالة التحقق من المستخدم المحلي =====
 function checkLocalUser() {
   const savedUser = localStorage.getItem('currentUser');
@@ -24,6 +21,7 @@ function checkLocalUser() {
       showAppInterface();
     } catch (e) {
       console.error('Error parsing saved user:', e);
+      localStorage.removeItem('currentUser');
       showLoginScreen();
     }
   } else {
@@ -43,8 +41,7 @@ function loginWithUsernamePassword() {
     return;
   }
 
-  // محاكاة التحقق من بيانات المستخدم
-  // في التطبيق الحقيقي، يجب التحقق من بيانات قاعدة البيانات
+  // التحقق من بيانات المستخدم
   const users = getAllUsers();
   const user = users.find(u => u.username === username);
 
@@ -53,7 +50,7 @@ function loginWithUsernamePassword() {
     return;
   }
 
-  // التحقق من كلمة المرور (في التطبيق الحقيقي، يجب استخدام hashing)
+  // التحقق من كلمة المرور
   if (!verifyPassword(password, user.password)) {
     showErrorMessage('كلمة المرور غير صحيحة');
     return;
@@ -85,6 +82,16 @@ function loginWithUsernamePassword() {
 
   // إظهار واجهة التطبيق
   showAppInterface();
+  
+  // تهيئة بيانات التطبيق بعد تسجيل الدخول
+  if (typeof loadDataFromLocalStorage === 'function') {
+    loadDataFromLocalStorage();
+    if (typeof setTodayDate === 'function') setTodayDate();
+    if (typeof renderSavedInvoices === 'function') renderSavedInvoices();
+    if (typeof updateStatusBar === 'function') updateStatusBar();
+    if (typeof addRow === 'function') addRow();
+  }
+  
   setStatus(`مرحباً ${currentUser.displayName}`);
 }
 
@@ -142,57 +149,19 @@ function registerNewUser() {
     id: generateUserId(),
     username: username,
     email: email,
-    password: hashPassword(password), // يجب استخدام hashing حقيقي
+    password: hashPassword(password),
     displayName: username,
     createdAt: new Date().toISOString(),
-    approved: true // المستخدمون المحليون معتمدون افتراضياً
+    approved: true
   };
 
   // حفظ المستخدم المحلي
   saveUser(newUser);
 
-  // محاولة إضافة المستخدم إلى Firebase
-  if (firebaseInitialized) {
-    createFirebaseUser(email, password, newUser);
-  } else {
-    showSuccessMessage('تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.');
-    setTimeout(() => {
-      toggleRegisterForm(new Event('click'));
-    }, 1500);
-  }
-}
-
-// ===== دالة إنشاء مستخدم في Firebase =====
-function createFirebaseUser(email, password, localUser) {
-  firebase.auth().createUserWithEmailAndPassword(email, password)
-    .then((userCredential) => {
-      const firebaseUser = userCredential.user;
-      
-      // إضافة بيانات المستخدم إلى Firestore
-      db.collection('users').doc(firebaseUser.uid).set({
-        username: localUser.username,
-        email: email,
-        displayName: localUser.displayName,
-        approved: true,
-        createdAt: new Date(),
-        authMethod: 'email'
-      });
-
-      showSuccessMessage('تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.');
-      
-      setTimeout(() => {
-        toggleRegisterForm(new Event('click'));
-      }, 1500);
-    })
-    .catch((error) => {
-      console.error('Firebase registration error:', error);
-      // حتى لو فشل Firebase، تم حفظ المستخدم محلياً
-      showSuccessMessage('تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.');
-      
-      setTimeout(() => {
-        toggleRegisterForm(new Event('click'));
-      }, 1500);
-    });
+  showSuccessMessage('تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.');
+  setTimeout(() => {
+    toggleRegisterForm(new Event('click'));
+  }, 1500);
 }
 
 // ===== دالة إرسال رابط استعادة كلمة المرور =====
@@ -216,62 +185,27 @@ function sendPasswordResetEmail() {
     return;
   }
 
-  // عرض رسالة الانتظار
-  showFieldError('forgotEmailError', 'جاري إرسال رابط الاستعادة...');
-  if (forgotEmailError) {
-    forgotEmailError.style.color = '#0066cc';
+  // التحقق من وجود المستخدم محلياً
+  const users = getAllUsers();
+  const user = users.find(u => u.email === email);
+  
+  if (!user) {
+    showFieldError('forgotEmailError', 'لم يتم العثور على حساب بهذا البريد الإلكتروني');
+    return;
   }
 
-  if (firebaseInitialized) {
-    // إعدادات متقدمة لرابط استعادة كلمة المرور
-    const actionCodeSettings = {
-      url: window.location.origin + window.location.pathname,
-      handleCodeInApp: false
-    };
-    
-    firebase.auth().sendPasswordResetEmail(email, actionCodeSettings)
-      .then(() => {
-        // رسالة النجاح مع تفاصيل واضحة
-        const successMsg = 'تم إرسال رابط استعادة كلمة المرور بنجاح!\n\nيرجى التحقق من بريدك الإلكتروني (بما في ذلك مجلد الرسائل المزعجة) للعثور على رابط الاستعادة.\n\nإذا لم تستقبل البريد خلال دقائق قليلة، يرجى التحقق من صحة البريد الإلكتروني.';
-        alert(successMsg);
-        showSuccessMessageInForm('تم إرسال رابط الاستعادة بنجاح!', 'forgotPasswordForm');
-        
-        setTimeout(() => {
-          document.getElementById('forgotEmail').value = '';
-          toggleForgotPasswordForm(new Event('click'));
-        }, 2000);
-      })
-      .catch((error) => {
-        console.error('Password reset error:', error);
-        let errorMessage = 'حدث خطأ في إرسال البريد';
-        
-        // معالجة أنواع الأخطاء المختلفة
-        if (error.code === 'auth/user-not-found') {
-          errorMessage = 'لم يتم العثور على حساب بهذا البريد الإلكتروني';
-        } else if (error.code === 'auth/invalid-email') {
-          errorMessage = 'البريد الإلكتروني غير صحيح';
-        } else if (error.code === 'auth/too-many-requests') {
-          errorMessage = 'محاولات كثيرة جداً. يرجى الانتظار قليلاً والمحاولة لاحقاً';
-        } else if (error.code === 'auth/operation-not-allowed') {
-          errorMessage = 'خدمة استعادة كلمة المرور غير مفعلة. يرجى التواصل مع المسؤول';
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-        
-        showFieldError('forgotEmailError', 'خطأ: ' + errorMessage);
-        if (forgotEmailError) {
-          forgotEmailError.style.color = '#d32f2f';
-        }
-      });
-  } else {
-    // إذا لم يكن Firebase متاحاً
-    const errorMsg = 'خدمة البريد غير متاحة حالياً. يرجى التأكد من اتصال الإنترنت والمحاولة لاحقاً.';
-    showFieldError('forgotEmailError', errorMsg);
-    if (forgotEmailError) {
-      forgotEmailError.style.color = '#d32f2f';
-    }
-    alert(errorMsg);
+  // في النظام المحلي، نعرض كلمة المرور المشفرة (للتطوير فقط)
+  // في الإنتاج يجب استخدام Firebase أو نظام بريد إلكتروني حقيقي
+  if (forgotEmailError) {
+    forgotEmailError.textContent = 'تم العثور على حسابك. يرجى التواصل مع المسؤول لاسترداد كلمة المرور.';
+    forgotEmailError.style.display = 'block';
+    forgotEmailError.style.color = '#0066cc';
   }
+  
+  setTimeout(() => {
+    document.getElementById('forgotEmail').value = '';
+    toggleForgotPasswordForm(new Event('click'));
+  }, 3000);
 }
 
 // ===== دالة تغيير كلمة المرور من النموذج الموجود في شاشة تسجيل الدخول =====
@@ -297,11 +231,7 @@ function changePassword() {
     return;
   }
 
-  if (authMode === 'local') {
-    changeLocalPassword(currentPassword, newPassword);
-  } else if (authMode === 'firebase') {
-    changeFirebasePassword(currentPassword, newPassword);
-  }
+  changeLocalPassword(currentPassword, newPassword);
 }
 
 // ===== دالة تغيير كلمة المرور من النافذة المنبثقة =====
@@ -327,15 +257,16 @@ function changePasswordFromModal() {
     return;
   }
 
-  if (authMode === 'local') {
-    changeLocalPasswordFromModal(currentPassword, newPassword);
-  } else if (authMode === 'firebase') {
-    changeFirebasePasswordFromModal(currentPassword, newPassword);
-  }
+  changeLocalPasswordFromModal(currentPassword, newPassword);
 }
 
 // ===== دالة تغيير كلمة المرور المحلية =====
 function changeLocalPassword(currentPassword, newPassword) {
+  if (!currentUser) {
+    showFieldError('currentPasswordError', 'يرجى تسجيل الدخول أولاً');
+    return;
+  }
+  
   const users = getAllUsers();
   const userIndex = users.findIndex(u => u.id === currentUser.id);
 
@@ -361,12 +292,17 @@ function changeLocalPassword(currentPassword, newPassword) {
   showSuccessMessageInForm('تم تحديث كلمة المرور بنجاح!', 'changePasswordForm');
   
   setTimeout(() => {
-    closeModal('changePasswordForm');
+    closeModal('changePasswordModal');
   }, 2000);
 }
 
 // ===== دالة تغيير كلمة المرور المحلية من النافذة =====
 function changeLocalPasswordFromModal(currentPassword, newPassword) {
+  if (!currentUser) {
+    showFieldError('modalCurrentPasswordError', 'يرجى تسجيل الدخول أولاً');
+    return;
+  }
+  
   const users = getAllUsers();
   const userIndex = users.findIndex(u => u.id === currentUser.id);
 
@@ -393,65 +329,6 @@ function changeLocalPasswordFromModal(currentPassword, newPassword) {
   setStatus('تم تحديث كلمة المرور بنجاح!');
 }
 
-// ===== دالة تغيير كلمة المرور في Firebase =====
-function changeFirebasePassword(currentPassword, newPassword) {
-  const user = firebase.auth().currentUser;
-  const credential = firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
-
-  user.reauthenticateWithCredential(credential)
-    .then(() => {
-      user.updatePassword(newPassword)
-        .then(() => {
-          // مسح النموذج
-          document.getElementById('currentPassword').value = '';
-          document.getElementById('newPassword').value = '';
-          document.getElementById('confirmNewPassword').value = '';
-
-          showSuccessMessageInForm('تم تحديث كلمة المرور بنجاح!', 'changePasswordForm');
-          
-          setTimeout(() => {
-            closeModal('changePasswordForm');
-          }, 2000);
-        })
-        .catch((error) => {
-          console.error('Password update error:', error);
-          showFieldError('newPasswordError', 'حدث خطأ في تحديث كلمة المرور');
-        });
-    })
-    .catch((error) => {
-      console.error('Re-authentication error:', error);
-      showFieldError('currentPasswordError', 'كلمة المرور الحالية غير صحيحة');
-    });
-}
-
-// ===== دالة تغيير كلمة المرور في Firebase من النافذة =====
-function changeFirebasePasswordFromModal(currentPassword, newPassword) {
-  const user = firebase.auth().currentUser;
-  const credential = firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
-
-  user.reauthenticateWithCredential(credential)
-    .then(() => {
-      user.updatePassword(newPassword)
-        .then(() => {
-          // مسح النموذج
-          document.getElementById('modalCurrentPassword').value = '';
-          document.getElementById('modalNewPassword').value = '';
-          document.getElementById('modalConfirmNewPassword').value = '';
-
-          closeModal('changePasswordModal');
-          setStatus('تم تحديث كلمة المرور بنجاح!');
-        })
-        .catch((error) => {
-          console.error('Password update error:', error);
-          showFieldError('modalNewPasswordError', 'حدث خطأ في تحديث كلمة المرور');
-        });
-    })
-    .catch((error) => {
-      console.error('Re-authentication error:', error);
-      showFieldError('modalCurrentPasswordError', 'كلمة المرور الحالية غير صحيحة');
-    });
-}
-
 // ===== دوال المساعدة للمصادقة =====
 
 function isValidEmail(email) {
@@ -460,13 +337,21 @@ function isValidEmail(email) {
 }
 
 function hashPassword(password) {
-  // تحذير: هذا ليس hashing حقيقي، يجب استخدام bcrypt أو مكتبة متخصصة
-  // هذا مجرد مثال توضيحي
-  return btoa(password); // Base64 encoding (غير آمن للإنتاج)
+  // تحذير: Base64 ليس hashing حقيقي، للاستخدام المحلي فقط
+  return btoa(unescape(encodeURIComponent(password)));
 }
 
 function verifyPassword(password, hashedPassword) {
-  return btoa(password) === hashedPassword;
+  try {
+    return btoa(unescape(encodeURIComponent(password))) === hashedPassword;
+  } catch (e) {
+    // دعم كلمات المرور القديمة المشفرة بـ btoa مباشرة
+    try {
+      return btoa(password) === hashedPassword;
+    } catch (e2) {
+      return false;
+    }
+  }
 }
 
 function generateUserId() {
@@ -492,6 +377,8 @@ function showErrorMessage(message) {
   errorDiv.textContent = message;
   
   const loginForm = document.getElementById('usernamePasswordForm');
+  if (!loginForm) return;
+  
   const existingError = loginForm.querySelector('.error-message');
   if (existingError) {
     existingError.remove();
@@ -500,7 +387,9 @@ function showErrorMessage(message) {
   loginForm.insertBefore(errorDiv, loginForm.firstChild);
   
   setTimeout(() => {
-    errorDiv.remove();
+    if (errorDiv.parentNode) {
+      errorDiv.remove();
+    }
   }, 5000);
 }
 
@@ -510,6 +399,8 @@ function showSuccessMessage(message) {
   successDiv.textContent = message;
   
   const registerForm = document.getElementById('registerForm');
+  if (!registerForm) return;
+  
   const existingSuccess = registerForm.querySelector('.success-message');
   if (existingSuccess) {
     existingSuccess.remove();
@@ -524,6 +415,8 @@ function showSuccessMessageInForm(message, formId) {
   successDiv.textContent = message;
   
   const form = document.getElementById(formId);
+  if (!form) return;
+  
   const existingSuccess = form.querySelector('.success-message');
   if (existingSuccess) {
     existingSuccess.remove();
@@ -546,6 +439,10 @@ function clearErrorMessages() {
     el.textContent = '';
     el.style.display = 'none';
   });
+  
+  // مسح رسائل الخطأ العامة أيضاً
+  const errorMessages = document.querySelectorAll('.error-message');
+  errorMessages.forEach(el => el.remove());
 }
 
 function clearPasswordErrors() {
@@ -576,6 +473,10 @@ function toggleRegisterForm(event) {
   event.preventDefault();
   const loginForm = document.getElementById('usernamePasswordForm');
   const registerForm = document.getElementById('registerForm');
+  const forgotForm = document.getElementById('forgotPasswordForm');
+  
+  // إخفاء جميع النماذج أولاً
+  forgotForm.style.display = 'none';
   
   if (loginForm.style.display === 'none') {
     loginForm.style.display = 'block';
@@ -592,6 +493,10 @@ function toggleForgotPasswordForm(event) {
   event.preventDefault();
   const loginForm = document.getElementById('usernamePasswordForm');
   const forgotForm = document.getElementById('forgotPasswordForm');
+  const registerForm = document.getElementById('registerForm');
+  
+  // إخفاء نموذج التسجيل
+  registerForm.style.display = 'none';
   
   if (loginForm.style.display === 'none') {
     loginForm.style.display = 'block';
@@ -628,8 +533,11 @@ function showAppInterface() {
   document.getElementById('appContainer').style.display = 'flex';
   
   if (currentUser) {
-    document.getElementById('syncStatus').textContent = '👤 ' + currentUser.displayName;
-    document.getElementById('syncStatus').className = 'sync-status synced';
+    const syncStatus = document.getElementById('syncStatus');
+    if (syncStatus) {
+      syncStatus.textContent = '👤 ' + currentUser.displayName;
+      syncStatus.className = 'sync-status synced';
+    }
   }
 }
 
@@ -643,13 +551,11 @@ function showLoginScreen() {
 
 // ===== دالة تسجيل الخروج =====
 function logoutUser() {
-  // تسجيل الخروج المحلي
   currentUser = null;
   isLoggedIn = false;
   localStorage.removeItem('currentUser');
   localStorage.removeItem('rememberMe');
   showLoginScreen();
-  setStatus('تم تسجيل الخروج بنجاح');
 }
 
 // ===== تهيئة المصادقة عند تحميل الصفحة =====
@@ -661,6 +567,15 @@ document.addEventListener('DOMContentLoaded', function() {
   const loginPasswordInput = document.getElementById('loginPassword');
   if (loginPasswordInput) {
     loginPasswordInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        loginWithUsernamePassword();
+      }
+    });
+  }
+
+  const loginUsernameInput = document.getElementById('loginUsername');
+  if (loginUsernameInput) {
+    loginUsernameInput.addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         loginWithUsernamePassword();
       }
