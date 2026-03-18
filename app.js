@@ -338,13 +338,17 @@ function formatNumber(num) {
 
 function saveInvoice() {
   const customerName = document.getElementById('customerName').value;
-  const invoiceNumber = document.getElementById('invoiceNumber').value;
   const invoiceDate = document.getElementById('invoiceDate').value;
   const invoiceType = document.getElementById('invoiceType').value;
   const notes = document.getElementById('invoiceNotes').value;
-  const grandTotal = parseFloat(document.getElementById('grandTotal').textContent) || 0;
+  const grandTotalText = document.getElementById('grandTotal').textContent;
+  const grandTotal = grandTotalText === '' ? 0 : parseFloat(grandTotalText) || 0;
   const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
-  const balance = parseFloat(document.getElementById('balance').textContent) || 0;
+  const balanceText = document.getElementById('balance').textContent;
+  const balance = balanceText === '' ? 0 : parseFloat(balanceText) || 0;
+  
+  // توليد رقم الفاتورة تلقائياً
+  const invoiceNumber = invoiceCounter;
 
   if (!customerName) {
     alert('يرجى اختيار زبون');
@@ -359,7 +363,9 @@ function saveInvoice() {
   const tbody = document.getElementById('invoiceBody');
   const items = [];
   tbody.querySelectorAll('tr').forEach(row => {
-    const type = row.querySelector('.col-type select').value;
+    // جلب الصنف من input بدلاً من select
+    const typeInput = row.querySelector('.col-type input');
+    const type = typeInput ? typeInput.value : '';
     const qty = parseFloat(row.querySelector('.col-qty input').value) || 0;
     const price = parseFloat(row.querySelector('.col-price input').value) || 0;
     
@@ -388,6 +394,7 @@ function saveInvoice() {
     savedInvoices[existingIndex] = invoice;
   } else {
     savedInvoices.push(invoice);
+    invoiceCounter++; // زيادة رقم الفاتورة للفاتورة القادمة
   }
 
   saveDataToLocalStorage();
@@ -398,6 +405,9 @@ function saveInvoice() {
 
   currentInvoiceId = invoice.id;
   setStatus(`تم حفظ الفاتورة رقم ${invoiceNumber}`);
+  
+  // مسح النموذج للبدء بفاتورة جديدة
+  newInvoice();
   renderSavedInvoices();
 }
 
@@ -431,7 +441,6 @@ function loadInvoice(invoiceId) {
   selectedCustomerId = invoice.customerId;
   
   document.getElementById('customerName').value = invoice.customerName;
-  document.getElementById('invoiceNumber').value = invoice.invoiceNumber;
   document.getElementById('invoiceDate').value = invoice.invoiceDate;
   document.getElementById('invoiceType').value = invoice.invoiceType;
   document.getElementById('invoiceNotes').value = invoice.notes;
@@ -443,7 +452,11 @@ function loadInvoice(invoiceId) {
   invoice.items.forEach((item, index) => {
     addRow();
     const row = tbody.rows[index];
-    row.querySelector('.col-type select').value = item.type;
+    // تعيين الصنف في input بدلاً من select
+    const typeInput = row.querySelector('.col-type input');
+    if (typeInput) {
+      typeInput.value = item.type;
+    }
     row.querySelector('.col-qty input').value = item.qty;
     row.querySelector('.col-price input').value = item.price;
   });
