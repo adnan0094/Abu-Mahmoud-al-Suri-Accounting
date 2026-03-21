@@ -4,22 +4,10 @@ let currentInvoiceId = null;
 let selectedCustomerId = null;
 let selectedRowIndex = -1;
 let invoiceCounter = 1001;
-
-// أنواع الأصناف الشائعة
-const commonItems = [
-  'أرز', 'سكر', 'طحين', 'زيت', 'ملح', 'شاي', 'قهوة', 'حليب',
-  'خبز', 'بيض', 'دجاج', 'لحم', 'سمك', 'خضروات', 'فواكه',
-  'مشروبات', 'عصير', 'ماء', 'صابون', 'شامبو', 'معجون أسنان',
-  'مناديل', 'أكياس', 'علب', 'أخرى'
-];
-
-// وحدات القياس
-const units = ['كغ', 'غ', 'لتر', 'مل', 'قطعة', 'علبة', 'كرتون', 'كيس', 'متر', 'دزينة'];
+let syncTimeout = null;
 
 // ===== تهيئة البرنامج =====
 document.addEventListener('DOMContentLoaded', function() {
-  // التحقق من تسجيل الدخول تم في auth.js
-  // هنا نقوم بتهيئة البيانات فقط
   if (isLoggedIn) {
     loadDataFromLocalStorage();
     setTodayDate();
@@ -38,37 +26,68 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ===== تحميل البيانات من localStorage =====
 function loadDataFromLocalStorage() {
-  const savedCustomers = localStorage.getItem('customers');
-  const savedInvoicesList = localStorage.getItem('savedInvoices');
-  const savedCounter = localStorage.getItem('invoiceCounter');
+  try {
+    const savedCustomers = localStorage.getItem('customers');
+    const savedInvoicesList = localStorage.getItem('savedInvoices');
+    const savedCounter = localStorage.getItem('invoiceCounter');
 
-  customers = savedCustomers ? JSON.parse(savedCustomers) : [];
-  savedInvoices = savedInvoicesList ? JSON.parse(savedInvoicesList) : [];
-  invoiceCounter = savedCounter ? parseInt(savedCounter) : 1001;
+    customers = savedCustomers ? JSON.parse(savedCustomers) : [];
+    savedInvoices = savedInvoicesList ? JSON.parse(savedInvoicesList) : [];
+    invoiceCounter = savedCounter ? parseInt(savedCounter) : 1001;
+  } catch (e) {
+    console.error('Error loading data from localStorage:', e);
+    customers = [];
+    savedInvoices = [];
+    invoiceCounter = 1001;
+  }
 }
 
 // ===== حفظ البيانات في localStorage =====
 function saveDataToLocalStorage() {
-  localStorage.setItem('customers', JSON.stringify(customers));
-  localStorage.setItem('savedInvoices', JSON.stringify(savedInvoices));
-  localStorage.setItem('invoiceCounter', invoiceCounter.toString());
+  try {
+    localStorage.setItem('customers', JSON.stringify(customers));
+    localStorage.setItem('savedInvoices', JSON.stringify(savedInvoices));
+    localStorage.setItem('invoiceCounter', invoiceCounter.toString());
+  } catch (e) {
+    console.error('Error saving data to localStorage:', e);
+  }
 }
 
-// ===== حفظ البيانات في Firebase (إذا كان متاحاً) =====
+// ===== حفظ البيانات في Firebase =====
 function saveDataToFirebase() {
-  if (typeof db !== 'undefined' && db && typeof currentUser !== 'undefined' && currentUser) {
-    try {
-      db.collection('userData').doc(currentUser.id).set({
-        customers: customers,
-        savedInvoices: savedInvoices,
-        invoiceCounter: invoiceCounter,
-        updatedAt: new Date()
-      }).catch(function(error) {
-        console.warn('Firebase save error:', error);
-      });
-    } catch (e) {
-      console.warn('Firebase not available:', e);
-    }
+  if (!currentUser || !db || authMode !== 'firebase') return;
+
+  const userId = currentUser.uid || currentUser.id;
+  
+  // حفظ الزبائن
+  customers.forEach(customer => {
+    db.collection('users').doc(userId).collection('customers').doc(customer.id.toString()).set(customer)
+      .catch(error => console.warn('Firebase customer save error:', error));
+  });
+
+  // حفظ الفواتير
+  savedInvoices.forEach(invoice => {
+    db.collection('users').doc(userId).collection('invoices').doc(invoice.id.toString()).set(invoice)
+      .catch(error => console.warn('Firebase invoice save error:', error));
+  });
+
+  updateSyncStatus('synced');
+}
+
+// ===== تحديث حالة المزامنة =====
+function updateSyncStatus(status) {
+  const syncIndicator = document.getElementById('syncStatus');
+  if (!syncIndicator) return;
+
+  if (status === 'syncing') {
+    syncIndicator.textContent = '⏳ جاري المزامنة...';
+    syncIndicator.className = 'sync-status syncing';
+  } else if (status === 'synced') {
+    syncIndicator.textContent = '☁️ متزامن';
+    syncIndicator.className = 'sync-status synced';
+  } else if (status === 'error') {
+    syncIndicator.textContent = '⚠️ خطأ في المزامنة';
+    syncIndicator.className = 'sync-status error';
   }
 }
 
@@ -95,21 +114,19 @@ function parseFormattedNumber(text) {
   text = text.replace(/[٠١٢٣٤٥٦٧٨٩]/g, function(d) {
     return d.charCodeAt(0) - 1632;
   });
-  // إزالة الفواصل العربية والإنجليزية
+  // إزالة الفواصل
   return parseFloat(text.replace(/,/g, '').replace(/٬/g, '')) || 0;
 }
 
+// ===== حفظ الفاتورة =====
 function saveInvoice() {
   const customerName = document.getElementById('customerName').value.trim();
   const invoiceDate = document.getElementById('invoiceDate').value;
-  const invoiceTypeEl = document.getElementById('invoiceType');
-  const invoiceType = invoiceTypeEl ? invoiceTypeEl.value.trim() : 'بيع';
   const notes = document.getElementById('invoiceNotes').value;
   const grandTotal = parseFormattedNumber(document.getElementById('grandTotal').textContent);
   const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
   const balance = parseFormattedNumber(document.getElementById('balance').textContent);
   
-  // توليد رقم الفاتورة تلقائياً
   const invoiceNumber = invoiceCounter;
 
   if (!customerName) {
@@ -136,7 +153,7 @@ function saveInvoice() {
   });
 
   if (items.length === 0) {
-    alert('يرجى إضافة أصناف صحيحة للفاتورة (الصنف والكمية والسعر مطلوبة)');
+    alert('يرجى إضافة أصناف صحيحة للفاتورة');
     return;
   }
 
@@ -146,7 +163,6 @@ function saveInvoice() {
     customerId: selectedCustomerId,
     invoiceNumber: invoiceNumber,
     invoiceDate: invoiceDate,
-    invoiceType: invoiceType || 'بيع',
     items: items,
     notes: notes,
     grandTotal: grandTotal,
@@ -160,19 +176,19 @@ function saveInvoice() {
     savedInvoices[existingIndex] = invoice;
   } else {
     savedInvoices.push(invoice);
-    invoiceCounter++; // زيادة رقم الفاتورة للفاتورة القادمة
+    invoiceCounter++;
   }
 
   saveDataToLocalStorage();
   
   if (authMode === 'firebase') {
+    updateSyncStatus('syncing');
     saveDataToFirebase();
   }
 
   currentInvoiceId = invoice.id;
   setStatus(`تم حفظ الفاتورة رقم ${invoiceNumber}`);
   
-  // مسح النموذج للبدء بفاتورة جديدة
   newInvoice();
   renderSavedInvoices();
   updateStatusBar();
@@ -353,6 +369,11 @@ function saveNewCustomer() {
   customers.push(newCustomer);
   saveDataToLocalStorage();
   
+  if (authMode === 'firebase') {
+    updateSyncStatus('syncing');
+    saveDataToFirebase();
+  }
+  
   closeModal('addCustomerModal');
   selectCustomer(newCustomer);
   setStatus(`تم إضافة الزبون: ${name}`);
@@ -366,14 +387,22 @@ function showCustomers() {
   tbody.innerHTML = '';
   customers.forEach((customer, index) => {
     const row = tbody.insertRow();
+    
+    // حساب المديونية
+    let customerDebt = 0;
+    savedInvoices.forEach(inv => {
+      if (inv.customerId === customer.id) {
+        customerDebt += inv.balance;
+      }
+    });
+    
     row.innerHTML = `
       <td>${index + 1}</td>
       <td>${customer.name}</td>
       <td>${customer.phone}</td>
-      <td>0</td>
+      <td>${formatNumber(customerDebt)}</td>
       <td>
-        <button class="btn-small" onclick="editCustomer('${customer.id}')">تعديل</button>
-        <button class="btn-small" onclick="deleteCustomer('${customer.id}')">حذف</button>
+        <button class="btn-delete" onclick="deleteCustomer('${customer.id}')">حذف</button>
       </td>
     `;
   });
@@ -386,14 +415,15 @@ function deleteCustomer(customerId) {
   if (confirm('هل أنت متأكد من حذف هذا الزبون؟')) {
     customers = customers.filter(c => c.id !== customerId);
     saveDataToLocalStorage();
+    
+    if (authMode === 'firebase') {
+      updateSyncStatus('syncing');
+      saveDataToFirebase();
+    }
+    
     showCustomers();
     setStatus('تم حذف الزبون');
   }
-}
-
-// ===== تعديل الزبون =====
-function editCustomer(customerId) {
-  alert('ميزة التعديل قيد التطوير');
 }
 
 // ===== عرض التقارير =====
@@ -414,7 +444,7 @@ function showReports() {
   content.innerHTML = `
     <div style="padding: 20px;">
       <h3>ملخص التقارير</h3>
-      <table style="width: 100%; border-collapse: collapse;">
+      <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
         <tr>
           <td style="padding: 10px; border: 1px solid #ddd;"><strong>إجمالي المبيعات:</strong></td>
           <td style="padding: 10px; border: 1px solid #ddd;">${formatNumber(totalSales)}</td>
@@ -430,6 +460,10 @@ function showReports() {
         <tr>
           <td style="padding: 10px; border: 1px solid #ddd;"><strong>عدد الفواتير:</strong></td>
           <td style="padding: 10px; border: 1px solid #ddd;">${savedInvoices.length}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border: 1px solid #ddd;"><strong>عدد الزبائن:</strong></td>
+          <td style="padding: 10px; border: 1px solid #ddd;">${customers.length}</td>
         </tr>
       </table>
     </div>
@@ -467,7 +501,6 @@ function printInvoice() {
   const invoice = savedInvoices.find(inv => inv.id === currentInvoiceId);
   if (!invoice) return;
 
-  // إنشاء عنصر HTML مؤقت يحتوي على بيانات الفاتورة
   const invoiceElement = document.createElement('div');
   invoiceElement.style.display = 'none';
   
@@ -487,15 +520,14 @@ function printInvoice() {
 
   invoiceElement.innerHTML = `
     <div id="pdf-content" style="padding: 20px; background: white; font-family: Arial, sans-serif; direction: rtl; width: 800px;">
-      <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0a246a; padding-bottom: 15px;">
-        <h1 style="margin: 0; color: #0a246a;">🏪 برنامج أبو محمود السوري للمحاسبة</h1>
+      <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #667eea; padding-bottom: 15px;">
+        <h1 style="margin: 0; color: #667eea;">🏪 برنامج أبو محمود السوري للمحاسبة</h1>
         <p>فاتورة رقم: <strong>${invoice.invoiceNumber}</strong></p>
       </div>
 
       <div style="display: flex; justify-content: space-between; margin-bottom: 20px; background: #f5f5f5; padding: 15px; border-radius: 5px;">
         <div>
           <strong>الزبون:</strong> ${invoice.customerName}<br>
-          <strong>نوع الفاتورة:</strong> ${invoice.invoiceType || 'بيع'}<br>
           <strong>التاريخ:</strong> ${invoice.invoiceDate}
         </div>
         ${invoice.notes ? `<div><strong>ملاحظات:</strong> ${invoice.notes}</div>` : ''}
@@ -503,7 +535,7 @@ function printInvoice() {
 
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
         <thead>
-          <tr style="background: #0a246a; color: white;">
+          <tr style="background: #667eea; color: white;">
             <th style="border: 1px solid #ddd; padding: 10px; text-align: center;">#</th>
             <th style="border: 1px solid #ddd; padding: 10px; text-align: center;">الصنف</th>
             <th style="border: 1px solid #ddd; padding: 10px; text-align: center;">الكمية</th>
@@ -519,7 +551,7 @@ function printInvoice() {
       <div style="text-align: left; margin-bottom: 20px; background: #f5f5f5; padding: 15px; border-radius: 5px;">
         <div style="padding: 5px 0; font-size: 16px;">إجمالي المبيعات: <strong>${formatNumber(invoice.grandTotal)}</strong></div>
         <div style="padding: 5px 0; font-size: 16px;">المدفوع: <strong>${formatNumber(invoice.amountPaid)}</strong></div>
-        <div style="padding: 5px 0; font-size: 18px; color: #d32f2f; font-weight: bold;">المتبقي: <strong>${formatNumber(invoice.balance)}</strong></div>
+        <div style="padding: 5px 0; font-size: 18px; color: #e74c3c; font-weight: bold;">المتبقي: <strong>${formatNumber(invoice.balance)}</strong></div>
       </div>
 
       <div style="text-align: center; margin-top: 30px; color: #666; border-top: 1px solid #ddd; padding-top: 15px;">
@@ -531,7 +563,6 @@ function printInvoice() {
 
   document.body.appendChild(invoiceElement);
 
-  // استخدام html2pdf لتحويل HTML إلى PDF
   const element = document.getElementById('pdf-content');
   const opt = {
     margin: 10,
@@ -550,23 +581,7 @@ function printInvoice() {
     alert('حدث خطأ في توليد ملف PDF. يرجى المحاولة مجدداً.');
   }
 
-  // حذف العنصر المؤقت
   document.body.removeChild(invoiceElement);
-}
-
-// ===== كشف حساب الزبون =====
-function showCustomerStatement(customerId) {
-  const customer = customers.find(c => c.id === customerId);
-  if (!customer) return;
-
-  const customerInvoices = savedInvoices.filter(inv => inv.customerId === customerId);
-  let totalDebt = 0;
-  
-  customerInvoices.forEach(inv => {
-    totalDebt += inv.balance;
-  });
-
-  alert(`كشف حساب الزبون: ${customer.name}\nإجمالي المديونية: ${formatNumber(totalDebt)}`);
 }
 
 // ===== عرض الفواتير المحفوظة =====
@@ -601,7 +616,6 @@ function loadInvoice(invoiceId) {
   
   document.getElementById('customerName').value = invoice.customerName;
   document.getElementById('invoiceDate').value = invoice.invoiceDate;
-  document.getElementById('invoiceType').value = invoice.invoiceType || 'بيع';
   document.getElementById('invoiceNotes').value = invoice.notes;
   document.getElementById('amountPaid').value = invoice.amountPaid;
 

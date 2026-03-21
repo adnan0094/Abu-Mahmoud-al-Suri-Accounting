@@ -9,6 +9,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js"></script>
 </head>
 <body>
 
@@ -167,7 +171,8 @@
 <div class="title-bar">
   <div class="title-bar-text">🏪 برنامج المحاسبة</div>
   <div class="title-bar-controls">
-    <span onclick="toggleMenu('mainMenu')" title="القائمة">☰</span>
+    <span id="syncStatus" class="sync-indicator"></span>
+    <span onclick="toggleMenu('mainMenu')" title="القائمة" class="menu-toggle">☰</span>
   </div>
 </div>
 
@@ -203,17 +208,6 @@
         <div class="invoice-info-group small">
           <label>التاريخ:</label>
           <input type="date" id="invoiceDate" class="input-field">
-        </div>
-      </div>
-      <div class="invoice-info-row">
-        <div class="invoice-info-group small">
-          <label>النوع:</label>
-          <select id="invoiceType" class="input-field">
-            <option value="بيع">بيع</option>
-            <option value="شراء">شراء</option>
-            <option value="مرتجع">مرتجع</option>
-            <option value="دفعة">دفعة</option>
-          </select>
         </div>
       </div>
     </div>
@@ -288,7 +282,6 @@
 <!-- شريط الحالة -->
 <div class="status-bar">
   <span id="statusMessage">جاهز</span>
-  <span id="syncStatus" class="sync-status"></span>
 </div>
 
 <!-- نافذة اختيار الزبون -->
@@ -408,9 +401,9 @@
     <div class="modal-body" style="text-align:center;">
       <div style="font-size:48px; margin:10px;">🏪</div>
       <h2>برنامج أبو محمود السوري للمحاسبة</h2>
-      <p>الإصدار 3.1.0</p>
+      <p>الإصدار 4.0.0</p>
       <p>نظام متكامل لإدارة الفواتير والزبائن</p>
-      <p style="font-size:12px; color:#666;">متوافق مع الجوال • تخزين محلي آمن • نظام أمني متقدم</p>
+      <p style="font-size:12px; color:#666;">متوافق مع الجوال • تخزين محلي آمن • مزامنة سحابية • نظام أمني متقدم</p>
       <hr>
       <p>جميع الحقوق محفوظة © 2026</p>
     </div>
